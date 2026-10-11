@@ -1,0 +1,9 @@
+[configuration]
+entry_symbol = "fmod_web_probe_init"
+compatibility_minimum = 4.6
+
+[libraries]
+web.debug.threads.wasm32 = "res://bin/libfmod_web_probe.web.template_debug.wasm32.wasm"
+web.release.threads.wasm32 = "res://bin/libfmod_web_probe.web.template_release.wasm32.wasm"
+web.debug.wasm32 = "res://bin/libfmod_web_probe.web.template_debug.wasm32.nothreads.wasm"
+web.release.wasm32 = "res://bin/libfmod_web_probe.web.template_release.wasm32.nothreads.wasm"

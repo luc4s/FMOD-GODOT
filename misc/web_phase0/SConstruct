@@ -1,0 +1,31 @@
+#!/usr/bin/env python
+# Phase 0 web probe (throwaway). See README.md.
+#   scons platform=web threads=no target=template_debug fmod_sdk=/path/to/fmodstudioapiXXXXXhtml5
+import os
+
+env = SConscript("../../godot-cpp/SConstruct")
+
+opts = Variables()
+opts.Add(PathVariable("fmod_sdk", "Path to the extracted FMOD HTML5 SDK", None, PathVariable.PathIsDir))
+opts.Add("fmod_lib", "FMOD studio archive in api/studio/lib/w32 (auto if empty)", "")
+opts.Update(env)
+
+sdk = env["fmod_sdk"]
+fmod_lib = env["fmod_lib"]
+if not fmod_lib:
+    # P = pthread/SharedArrayBuffer build, L = logging build.
+    fmod_lib = "fmodstudio{}{}_wasm".format(
+        "P" if env["threads"] else "", "L" if env["target"] != "template_release" else ""
+    )
+
+env.Append(CPPPATH=["src/", os.path.join(sdk, "api/core/inc"), os.path.join(sdk, "api/studio/inc")])
+env.Append(CXXFLAGS=["-std=c++20"])
+# Studio archives already contain the core API.
+env.Append(LIBS=[File(os.path.join(sdk, "api/studio/lib/w32", fmod_lib + ".a"))])
+
+suffix = env["suffix"].replace(".dev", "").replace(".universal", "")
+library = env.SharedLibrary(
+    "project/bin/libfmod_web_probe{}{}".format(suffix, env["SHLIBSUFFIX"]),
+    source=Glob("src/*.cpp"),
+)
+Default(library)

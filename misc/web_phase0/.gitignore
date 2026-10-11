@@ -1,0 +1,6 @@
+project/bin/
+project/banks/
+project/.godot/
+build/
+*.o
+.sconsign.dblite
