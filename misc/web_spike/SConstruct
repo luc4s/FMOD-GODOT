@@ -1,0 +1,26 @@
+#!/usr/bin/env python
+# Builds the Phase 0 web spike side module. Usage (from this directory):
+#   scons platform=web threads=no target=template_debug fmod_api=<FMOD html5 'api' dir> \
+#         fmod_libs=fmodstudioL_wasm.a,fmodL_wasm.a
+import os
+
+fmod_api = ARGUMENTS.pop("fmod_api")
+fmod_libs = ARGUMENTS.pop("fmod_libs").split(",")
+
+env = SConscript("../../godot-cpp/SConstruct")
+env.Append(CXXFLAGS=["-std=c++20"])
+env.Append(CPPPATH=[os.path.join(fmod_api, "core", "inc"), os.path.join(fmod_api, "studio", "inc")])
+
+lib_dirs = [os.path.join(fmod_api, part, "lib", "upstream", "w32") for part in ("core", "studio")]
+for lib in fmod_libs:
+    found = [os.path.join(d, lib) for d in lib_dirs if os.path.isfile(os.path.join(d, lib))]
+    if not found:
+        raise SystemExit("FMOD library not found: %s (searched %s)" % (lib, lib_dirs))
+    # Pass archives by full path: they are not named lib*.a, so -l would not find them.
+    env.Append(LINKFLAGS=[found[0]])
+
+library = env.SharedLibrary(
+    "project/bin/libfmod_web_spike{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
+    source=["src/spike.cpp"],
+)
+Default(library)

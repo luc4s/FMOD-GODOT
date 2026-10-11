@@ -1,0 +1,9 @@
+[configuration]
+entry_symbol = "fmod_web_spike_init"
+compatibility_minimum = 4.6
+
+[libraries]
+web.debug.wasm32 = "res://bin/libfmod_web_spike.web.template_debug.wasm32.nothreads.wasm"
+web.release.wasm32 = "res://bin/libfmod_web_spike.web.template_release.wasm32.nothreads.wasm"
+web.debug.threads.wasm32 = "res://bin/libfmod_web_spike.web.template_debug.wasm32.wasm"
+web.release.threads.wasm32 = "res://bin/libfmod_web_spike.web.template_release.wasm32.wasm"
