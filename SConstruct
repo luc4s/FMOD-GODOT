@@ -1,14 +1,34 @@
 #!/usr/bin/env python
 import os
+import re
 import sys
 from methods import print_error
 
 libname = "FmodGodot"
 so_number = 1
 
+target_platform = ARGUMENTS.get("platform", ARGUMENTS.get("p", "")).lower()
 # FMOD's non-pthread HTML5 libraries only link into single-threaded side modules.
-if ARGUMENTS.get("platform", ARGUMENTS.get("p", "")).lower() == "web":
+if target_platform == "web":
     ARGUMENTS.setdefault("threads", "no")
+
+
+def generated_bindings_match_target():
+    # godot-cpp regenerates its bindings when the API or build profile changes, but not when the target's word size
+    # does, e.g. a linux build followed by a web build in the same checkout. The stale sizes break the web build at
+    # runtime, so detect that from the generated Array size (pointer sized).
+    array_header = os.path.join("godot-cpp", "gen", "include", "godot_cpp", "variant", "array.hpp")
+    if not os.path.isfile(array_header):
+        return True
+    arch = ARGUMENTS.get("arch", "wasm32" if target_platform == "web" else "")
+    is_32_bit = "32" in arch if arch else sys.maxsize <= 2**32
+    with open(array_header, encoding="utf-8") as header:
+        generated = re.search(r"ARRAY_SIZE = (\d+);", header.read())
+    return generated is None or generated.group(1) == ("4" if is_32_bit else "8")
+
+
+if not generated_bindings_match_target():
+    ARGUMENTS["generate_bindings"] = "yes"
 
 env = SConscript("godot-cpp/SConstruct")
 source_path = [
