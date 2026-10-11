@@ -28,9 +28,10 @@ void FmodGodot::FmodEventAudioStreamPlayback::_stop()
 }
 bool FmodGodot::FmodEventAudioStreamPlayback::_is_playing() const
 {
-    FMOD_STUDIO_PLAYBACK_STATE state;
+    FMOD_STUDIO_PLAYBACK_STATE state = FMOD_STUDIO_PLAYBACK_STOPPED;
     FMOD_Studio_EventInstance_GetPlaybackState(instance, &state);
-    return state == FMOD_STUDIO_PLAYBACK_PLAYING;
+    // A started event stays STARTING until the next Studio update, which can be a frame later on the web.
+    return state == FMOD_STUDIO_PLAYBACK_PLAYING || state == FMOD_STUDIO_PLAYBACK_STARTING;
 }
 double FmodGodot::FmodEventAudioStreamPlayback::_get_playback_position() const
 {

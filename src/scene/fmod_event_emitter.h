@@ -49,8 +49,8 @@ template <class Derived, class NodeType, class RigidBody> class FmodEventEmitter
     float volume = 1;
 
   protected:
-    FMOD_STUDIO_EVENTDESCRIPTION *description;
-    FMOD_STUDIO_EVENTINSTANCE *event_instance;
+    FMOD_STUDIO_EVENTDESCRIPTION *description = nullptr;
+    FMOD_STUDIO_EVENTINSTANCE *event_instance = nullptr;
     Vector<Parameter> parameters;
     void refresh_parameters();
     void set_parameters();
@@ -136,9 +136,10 @@ void FmodEventEmitter<Derived, NodeType, RigidBody>::set_paused(bool p_is_paused
 template <class Derived, class NodeType, class RigidBody>
 bool FmodEventEmitter<Derived, NodeType, RigidBody>::is_playing() const
 {
-    FMOD_STUDIO_PLAYBACK_STATE state;
+    FMOD_STUDIO_PLAYBACK_STATE state = FMOD_STUDIO_PLAYBACK_STOPPED;
     FMOD_Studio_EventInstance_GetPlaybackState(event_instance, &state);
-    return state == FMOD_STUDIO_PLAYBACK_PLAYING;
+    // A started event stays STARTING until the next Studio update, which can be a frame later on the web.
+    return state == FMOD_STUDIO_PLAYBACK_PLAYING || state == FMOD_STUDIO_PLAYBACK_STARTING;
 }
 template <class Derived, class NodeType, class RigidBody>
 const StringName &FmodEventEmitter<Derived, NodeType, RigidBody>::get_class_static()

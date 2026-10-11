@@ -11,6 +11,7 @@
 #include "fmod_string_names.h"
 #include "fmod_studio.h"
 #include "fmod_studio_common.h"
+#include "fmod_web.h"
 #include "globals.h"
 #include "variant/callable.hpp"
 #include "variant/dictionary.hpp"
@@ -40,6 +41,10 @@ namespace FmodGodot
 FMOD_RESULT fmod_debug_callback(FMOD_DEBUG_FLAGS p_flags, const char *p_file, int p_line, const char *p_func,
                                 const char *p_message)
 {
+    if (Web::is_ignored_log_message(p_message))
+    {
+        return FMOD_OK;
+    }
     if (p_flags & FMOD_DEBUG_LEVEL_ERROR)
     {
         _err_print_error(p_func, p_file, p_line, p_message, true, false);
@@ -215,9 +220,6 @@ FMOD_RESULT FmodAudioServer::init_with_project_settings()
 
 FMOD_RESULT FmodAudioServer::init(const InitSettings &p_settings)
 {
-    thread.instantiate();
-    exit_thread = false;
-    thread_exited = false;
     FMOD_STUDIO_INITFLAGS studio_init = FMOD_STUDIO_INIT_NORMAL;
     switch (p_settings.live_update)
     {
@@ -238,12 +240,32 @@ FMOD_RESULT FmodAudioServer::init(const InitSettings &p_settings)
     default:
         break;
     }
-    FMOD_ERR_FAIL_VE_MSG(
+#ifdef WEB_ENABLED
+    // No networking on the web, so FMOD can't serve Live Update.
+    if (p_settings.live_update == InitSettings::LIVE_UPDATE_ENABLED)
+    {
+        WARN_PRINT("FMOD Live Update is not supported on the Web platform and has been disabled.");
+    }
+    studio_init &= ~FMOD_STUDIO_INIT_LIVEUPDATE;
+#endif
+    // The non-logging FMOD libraries (used by release builds) don't support debug output and return
+    // FMOD_ERR_UNSUPPORTED, which must not stop FMOD from initializing.
+    FMOD_RESULT debug_result =
         FMOD_Debug_Initialize(p_settings.logging_level | p_settings.debug_type | p_settings.debug_display,
-                              FMOD_DEBUG_MODE_CALLBACK, fmod_debug_callback, nullptr),
-        "Failed to initialize debug callbacks.");
+                              FMOD_DEBUG_MODE_CALLBACK, fmod_debug_callback, nullptr);
+    if (debug_result != FMOD_OK && debug_result != FMOD_ERR_UNSUPPORTED)
+    {
+        ERR_PRINT(vformat("Failed to initialize debug callbacks: %s", FMOD_ErrorString(debug_result)));
+    }
 
     FMOD_ERR_FAIL_VE_MSG(FMOD_Studio_System_Create(&studio_system, FMOD_VERSION), "Failed to create studio system.");
+    int missing_js_exports = Web::publish_fmod_js_exports();
+    if (missing_js_exports != 0)
+    {
+        ERR_PRINT(
+            vformat("%d FMOD mixer callbacks could not be published for FMOD's JavaScript, audio may stay silent.",
+                    missing_js_exports));
+    }
     FMOD_ERR_FAIL_VE_MSG(FMOD_Studio_System_GetCoreSystem(studio_system, &core_system), "Failed to get core system.");
 
     // Core Settings | Initialize to zero/NUll since thats default according to FMOD docs. and as recommended;
@@ -274,26 +296,40 @@ FMOD_RESULT FmodAudioServer::init(const InitSettings &p_settings)
                          "Failed to initialized Fmod Studio System");
     initialized = true;
 
+#ifdef THREADS_ENABLED
+    exit_thread = false;
+    thread.instantiate();
     thread->start(callable_mp(this, &FmodAudioServer::_thread_func), Thread::Priority::PRIORITY_NORMAL);
+#endif
+    // Without threads, Studio is updated from the main loop instead, see _main_thread_update().
+    Web::install_audio_unlock();
+
+    TypedDictionary<String, int> plugins = GLOBAL_GET(PLUGINS);
+#ifdef WEB_ENABLED
+    // FMOD's HTML5 build can't load plugins (no System::loadPlugin).
+    if (!plugins.is_empty())
+    {
+        WARN_PRINT("FMOD plugins (fmod/plugins/plugins) are not supported on the Web platform and were not loaded.");
+    }
+#else
     String plugin_path = GLOBAL_GET(PLUGIN_PATH);
-    ;
     if (!plugin_path.is_empty())
     {
         FMOD_System_SetPluginPath(core_system, plugin_path.utf8().ptr());
     }
     unsigned int handle;
-    TypedDictionary<String, int> plugins = GLOBAL_GET(PLUGINS);
     for (auto plugin_file : plugins.keys())
     {
         FMOD_System_LoadPlugin(core_system, String(plugin_file).utf8().ptr(), &handle,
                                /*Priority*/ plugins[plugin_file]);
     }
+#endif
     return FMOD_OK;
 }
 
 void FmodAudioServer::_physics_process()
 {
-    if (thread_exited)
+    if (!initialized)
     {
         return;
     }
@@ -307,9 +343,104 @@ void FmodAudioServer::_physics_process()
             i--;
             continue;
         }
-        FMOD_3D_ATTRIBUTES attributes;
-        Vector3 velocity;
-        if (!instances[i].node->is_inside_tree())
+        if (!_is_attached_node_valid(instances[i]))
+        {
+            FMOD_Studio_EventInstance_Stop(instances[i].instance, FMOD_STUDIO_STOP_IMMEDIATE);
+            FMOD_Studio_EventInstance_Release(instances[i].instance);
+            instances[i] = instances[instances.size() - 1];
+            instances.remove_at(instances.size() - 1);
+            i--;
+            continue;
+        }
+        // The velocity is applied by _sync_attached_instances().
+        Vector3 position;
+        double delta = 0;
+        switch (instances[i].attachment)
+        {
+        case Attachment::NODE2D: {
+            Vector2 pos = instances[i].node2D->get_global_position();
+            position = Vector3(pos.x, pos.y, 0);
+            delta = instances[i].node2D->get_physics_process_delta_time();
+            break;
+        }
+        case Attachment::NODE3D: {
+            position = instances[i].node3D->get_global_position();
+            delta = instances[i].node3D->get_physics_process_delta_time();
+            break;
+        }
+        default:
+            continue;
+        }
+        if (instances[i].nonRigidbodyVelocity && delta > 0)
+        {
+            instances[i].velocity = (position - instances[i].lastFramePosition) / delta;
+        }
+        instances[i].lastFramePosition = position;
+    }
+    unlock();
+}
+
+void FmodAudioServer::_thread_func()
+{
+    thread->set_thread_safety_checks_enabled(false);
+    while (!exit_thread)
+    {
+        _update_step();
+        OS::get_singleton()->delay_usec(20);
+    }
+}
+
+void FmodAudioServer::_main_thread_update()
+{
+    // With threads, _thread_func() does this.
+    if (!initialized || thread.is_valid())
+    {
+        return;
+    }
+    _update_step();
+}
+
+void FmodAudioServer::_on_main_loop_started()
+{
+    SceneTree *tree = cast_to<SceneTree>(Engine::get_singleton()->get_main_loop());
+    if (!tree)
+    {
+        return;
+    }
+    Callable physics_callback = callable_mp(this, &FmodAudioServer::_physics_process);
+    if (!tree->is_connected("physics_frame", physics_callback))
+    {
+        tree->connect("physics_frame", physics_callback);
+    }
+}
+
+void FmodAudioServer::_update_step()
+{
+    lock();
+    _sync_attached_instances();
+    unlock();
+    FMOD_Studio_System_Update(studio_system);
+}
+
+bool FmodAudioServer::_is_attached_node_valid(const AttachedInstance &p_instance) const
+{
+    // A freed node can still be attached until the next Studio update releases its event.
+    return UtilityFunctions::is_instance_id_valid(p_instance.node_id) && p_instance.node->is_inside_tree();
+}
+
+void FmodAudioServer::_sync_attached_instances()
+{
+    FMOD_3D_ATTRIBUTES attributes;
+    for (uint32_t i = 0; i < instances.size(); i++)
+    {
+        if (!FMOD_Studio_EventInstance_IsValid(instances[i].instance))
+        {
+            instances[i] = instances[instances.size() - 1];
+            instances.remove_at(instances.size() - 1);
+            i--;
+            continue;
+        }
+        if (!_is_attached_node_valid(instances[i]))
         {
             FMOD_Studio_EventInstance_Stop(instances[i].instance, FMOD_STUDIO_STOP_IMMEDIATE);
             FMOD_Studio_EventInstance_Release(instances[i].instance);
@@ -320,99 +451,29 @@ void FmodAudioServer::_physics_process()
         }
         switch (instances[i].attachment)
         {
-        case Attachment::NODE2D: {
-            FMOD_Studio_EventInstance_Get3DAttributes(instances[i].instance, &attributes);
-            Vector2 pos = instances[i].node2D->get_global_position();
-            velocity = (Vector3(pos.x, pos.y, 0) - instances[i].lastFramePosition) /
-                       instances[i].node2D->get_physics_process_delta_time();
-            attributes.velocity = to_fmod_vector(velocity);
-            instances[i].lastFramePosition = Vector3(pos.x, pos.y, 0);
+        case NODE2D:
+            attributes = to_3d_attributes(instances[i].node2D);
+            attributes.velocity = to_fmod_vector(instances[i].velocity);
             FMOD_Studio_EventInstance_Set3DAttributes(instances[i].instance, &attributes);
             break;
-        }
-        case Attachment::NODE3D: {
-            FMOD_Studio_EventInstance_Get3DAttributes(instances[i].instance, &attributes);
-            velocity = (instances[i].node3D->get_global_position() - instances[i].lastFramePosition) /
-                       instances[i].node3D->get_physics_process_delta_time();
-            attributes.velocity = to_fmod_vector(velocity);
-            instances[i].lastFramePosition = instances[i].node3D->get_global_position();
+        case NODE3D:
+            attributes = to_3d_attributes(instances[i].node3D);
+            attributes.velocity = to_fmod_vector(instances[i].velocity);
             FMOD_Studio_EventInstance_Set3DAttributes(instances[i].instance, &attributes);
             break;
-        }
+        case RIGIDBODY2D:
+            attributes = to_3d_attributes(instances[i].rigidBody2D);
+            FMOD_Studio_EventInstance_Set3DAttributes(instances[i].instance, &attributes);
+            break;
+        case RIGIDBODY3D:
+            attributes = to_3d_attributes(instances[i].rigidBody3D);
+            FMOD_Studio_EventInstance_Set3DAttributes(instances[i].instance, &attributes);
+            break;
+
         default:
             break;
         }
     }
-    unlock();
-}
-
-void FmodAudioServer::_thread_func()
-{
-    thread->set_thread_safety_checks_enabled(false);
-    SceneTree *tree = cast_to<SceneTree>(Engine::get_singleton()->get_main_loop());
-    while (!tree)
-    {
-        OS::get_singleton()->delay_usec(20);
-        tree = cast_to<SceneTree>(Engine::get_singleton()->get_main_loop());
-    }
-    uint64_t tree_instance_id = tree->get_instance_id();
-    Callable physics_callback = callable_mp(this, &FmodAudioServer::_physics_process);
-    tree->connect("physics_frame", physics_callback);
-    while (!exit_thread)
-    {
-        FMOD_3D_ATTRIBUTES attributes;
-        lock();
-        for (uint32_t i = 0; i < instances.size(); i++)
-        {
-            if (!FMOD_Studio_EventInstance_IsValid(instances[i].instance))
-            {
-                instances[i] = instances[instances.size() - 1];
-                instances.remove_at(instances.size() - 1);
-                i--;
-                continue;
-            }
-            if (!instances[i].node->is_inside_tree())
-            {
-                FMOD_Studio_EventInstance_Stop(instances[i].instance, FMOD_STUDIO_STOP_IMMEDIATE);
-                FMOD_Studio_EventInstance_Release(instances[i].instance);
-                instances[i] = instances[instances.size() - 1];
-                instances.remove_at(instances.size() - 1);
-                i--;
-                continue;
-            }
-            switch (instances[i].attachment)
-            {
-            case NODE2D:
-                attributes = to_3d_attributes(instances[i].node2D);
-                FMOD_Studio_EventInstance_Set3DAttributes(instances[i].instance, &attributes);
-                break;
-            case NODE3D:
-                attributes = to_3d_attributes(instances[i].node3D);
-                FMOD_Studio_EventInstance_Set3DAttributes(instances[i].instance, &attributes);
-                break;
-            case RIGIDBODY2D:
-                attributes = to_3d_attributes(instances[i].rigidBody2D);
-                FMOD_Studio_EventInstance_Set3DAttributes(instances[i].instance, &attributes);
-                break;
-            case RIGIDBODY3D:
-                attributes = to_3d_attributes(instances[i].rigidBody3D);
-                FMOD_Studio_EventInstance_Set3DAttributes(instances[i].instance, &attributes);
-                break;
-
-            default:
-                break;
-            }
-        }
-        unlock();
-        FMOD_Studio_System_Update(studio_system);
-        OS::get_singleton()->delay_usec(20);
-    }
-    // mainly here for the editor
-    if (UtilityFunctions::is_instance_id_valid(tree_instance_id))
-    {
-        tree->disconnect("physics_frame", physics_callback);
-    }
-    FMOD_Studio_System_Release(studio_system);
 }
 
 /**
@@ -435,47 +496,58 @@ int FmodAudioServer::_find_instance(FMOD_STUDIO_EVENTINSTANCE *p_event)
 
 void FmodAudioServer::unlock()
 {
-    if (!thread.is_valid())
-    {
-        return;
-    }
-
     mutex.unlock();
 }
 
 void FmodAudioServer::lock()
 {
-    if (!thread.is_valid())
-    {
-        return;
-    }
-
     mutex.lock();
 }
 
 void FmodAudioServer::finish()
 {
-    if (!thread.is_valid())
+    if (thread.is_valid())
+    {
+        exit_thread = true;
+        thread->wait_to_finish();
+        thread.unref();
+    }
+    initialized = false;
+    if (!studio_system)
     {
         return;
     }
+    Web::remove_audio_unlock();
+    lock();
+    instances.clear();
+    unlock();
+    FMOD_Studio_System_Release(studio_system);
+    studio_system = nullptr;
+    core_system = nullptr;
+    live_update_connected = false;
+}
 
-    exit_thread = true;
-    thread->wait_to_finish();
-    thread.unref();
-    initialized = false;
-    thread_exited = true;
+void FmodAudioServer::mixer_suspend()
+{
+    ERR_FAIL_COND(!initialized);
+    FMOD_ERR_FAIL(FMOD_System_MixerSuspend(core_system));
+}
+
+void FmodAudioServer::mixer_resume()
+{
+    ERR_FAIL_COND(!initialized);
+    FMOD_ERR_FAIL(FMOD_System_MixerResume(core_system));
 }
 void FmodAudioServer::_bind_methods()
 {
     BIND_ENUM_CONSTANT(InitSettings::LIVE_UPDATE_DISABLED);
     BIND_ENUM_CONSTANT(InitSettings::LIVE_UPDATE_ENABLED);
     BIND_ENUM_CONSTANT(InitSettings::LIVE_UPDATE_DEV_ONLY);
-    ClassDB ::bind_static_method(get_class_static(), D_METHOD("get_version_number"), &self_type ::_get_version_number);
-    ClassDB ::bind_method(D_METHOD("get_core"), &self_type ::_get_core);
-    ClassDB ::bind_method(D_METHOD("get_studio"), &self_type ::_get_studio);
-    ClassDB ::bind_method(D_METHOD("create_instance", "guid"), &self_type ::_create_instance);
-    ClassDB ::bind_method(D_METHOD("create_instance_by_path", "path"), &self_type ::_create_instance_by_path);
+    ClassDB::bind_static_method(get_class_static(), D_METHOD("get_version_number"), &self_type::_get_version_number);
+    ClassDB::bind_method(D_METHOD("get_core"), &self_type::_get_core);
+    ClassDB::bind_method(D_METHOD("get_studio"), &self_type::_get_studio);
+    ClassDB::bind_method(D_METHOD("create_instance", "guid"), &self_type::_create_instance);
+    ClassDB::bind_method(D_METHOD("create_instance_by_path", "path"), &self_type::_create_instance_by_path);
 
     BIND_METHOD(unload_banks);
     BIND_BOOL_PROPERTY(muted);
@@ -511,23 +583,23 @@ void FmodAudioServer::_bind_methods()
     BIND_STATIC_METHOD(get_singleton);
     BIND_METHOD(any_sample_data_loading);
 
-    ClassDB ::bind_method(D_METHOD("attach_instance_to_node3d", "node", "event", "non_rigid_body_velocity"),
-                          &self_type::_attach_instance_to_node3d, (false));
-    ClassDB ::bind_method(D_METHOD("attach_instance_to_node2d", "node", "event", "non_rigid_body_velocity"),
-                          &self_type::_attach_instance_to_node2d, (false));
-    ClassDB ::bind_method(D_METHOD("attach_instance_to_rigid_body2d", "rigid_body", "event"),
-                          &self_type::_attach_instance_to_rigid_body2d);
-    ClassDB ::bind_method(D_METHOD("attach_instance_to_rigid_body3d", "rigid_body", "event"),
-                          &self_type::_attach_instance_to_rigid_body3d);
-    ClassDB ::bind_method(D_METHOD("detach_instance", "handle"), &self_type ::_detach_instance);
+    ClassDB::bind_method(D_METHOD("attach_instance_to_node3d", "node", "event", "non_rigid_body_velocity"),
+                         &self_type::_attach_instance_to_node3d, (false));
+    ClassDB::bind_method(D_METHOD("attach_instance_to_node2d", "node", "event", "non_rigid_body_velocity"),
+                         &self_type::_attach_instance_to_node2d, (false));
+    ClassDB::bind_method(D_METHOD("attach_instance_to_rigid_body2d", "rigid_body", "event"),
+                         &self_type::_attach_instance_to_rigid_body2d);
+    ClassDB::bind_method(D_METHOD("attach_instance_to_rigid_body3d", "rigid_body", "event"),
+                         &self_type::_attach_instance_to_rigid_body3d);
+    ClassDB::bind_method(D_METHOD("detach_instance", "handle"), &self_type::_detach_instance);
 
     BIND_METHOD_OL_C(_get_event_description, "get_event_description", ARGS("id"), Handle, const Vector4i &);
     BIND_METHOD_OL_C(_get_event_description, "get_event_description_by_path", ARGS("path"), Handle, const String &);
-    ClassDB ::bind_method(D_METHOD("get_bus", "guid"), &self_type ::_get_bus);
-    ClassDB ::bind_method(D_METHOD("get_vca", "guid"), &self_type ::_get_vca);
+    ClassDB::bind_method(D_METHOD("get_bus", "guid"), &self_type::_get_bus);
+    ClassDB::bind_method(D_METHOD("get_vca", "guid"), &self_type::_get_vca);
 
-    ClassDB ::bind_method(D_METHOD("get_bus_by_path", "path"), &self_type ::_get_bus_by_path);
-    ClassDB ::bind_method(D_METHOD("get_vca_by_path", "path"), &self_type ::_get_vca_by_path);
+    ClassDB::bind_method(D_METHOD("get_bus_by_path", "path"), &self_type::_get_bus_by_path);
+    ClassDB::bind_method(D_METHOD("get_vca_by_path", "path"), &self_type::_get_vca_by_path);
 
     BIND_METHOD(path_to_guid, "path");
     BIND_METHOD(has_bank_loaded, "bank_name");
@@ -547,6 +619,8 @@ void FmodAudioServer::_bind_methods()
                             ARGS(RigidBody3D *, int, Node3D *), DEFVAL(0), DEFVAL(nullptr));
     BIND_METHOD(is_live_update_connected);
     BIND_METHOD(wait_for_all_sample_loading);
+    BIND_METHOD(mixer_suspend);
+    BIND_METHOD(mixer_resume);
     ADD_SIGNAL(MethodInfo("preupdate"));
     ADD_SIGNAL(MethodInfo("postupdate"));
     // ADD_SIGNAL(MethodInfo("bank_unloaded"));
@@ -733,9 +807,12 @@ void FmodAudioServer::play_one_shot_attached(const String &p_path, RigidBody2D *
 }
 bool FmodAudioServer::any_sample_data_loading() const
 {
-    int count;
-    FMOD_Studio_System_GetBankCount(studio_system, &count);
-    int retrieved;
+    int count = 0;
+    if (FMOD_Studio_System_GetBankCount(studio_system, &count) != FMOD_OK || count <= 0)
+    {
+        return false;
+    }
+    int retrieved = 0;
     FMOD_STUDIO_BANK **banks = memnew_arr(FMOD_STUDIO_BANK *, count);
 
     FMOD_Studio_System_GetBankList(studio_system, banks, count, &retrieved);
@@ -776,7 +853,6 @@ void FmodAudioServer::detach_instance(FMOD_STUDIO_EVENTINSTANCE *p_instance)
     {
         instances[i] = instances[instances.size() - 1];
         instances.remove_at(instances.size() - 1);
-        return;
     }
     unlock();
 }

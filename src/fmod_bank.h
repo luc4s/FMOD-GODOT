@@ -16,7 +16,7 @@ class FmodBank : public Resource
     GDCLASS(FmodBank, Resource);
 
   private:
-    FMOD_STUDIO_BANK *bank;
+    FMOD_STUDIO_BANK *bank = nullptr;
 
   protected:
     static void _bind_methods();

@@ -44,7 +44,7 @@ FMOD_3D_ATTRIBUTES to_3d_attributes(RigidBody3D *p_rigidbody)
 
 FMOD_3D_ATTRIBUTES to_3d_attributes(Node2D *p_node)
 {
-    FMOD_3D_ATTRIBUTES attributes;
+    FMOD_3D_ATTRIBUTES attributes{};
     attributes.position = to_fmod_vector(p_node->get_global_position());
     attributes.forward = to_fmod_vector(p_node->get_global_transform().columns[0]);
     attributes.up = to_fmod_vector(p_node->get_global_transform().columns[1]);
@@ -66,7 +66,7 @@ Variant to_variant(FMOD_STUDIO_USER_PROPERTY p_property)
     case FMOD_STUDIO_USER_PROPERTY_TYPE_INTEGER:
         return p_property.intvalue;
     case FMOD_STUDIO_USER_PROPERTY_TYPE_BOOLEAN:
-        return p_property.stringvalue;
+        return p_property.boolvalue != 0;
     case FMOD_STUDIO_USER_PROPERTY_TYPE_FLOAT:
         return p_property.floatvalue;
     case FMOD_STUDIO_USER_PROPERTY_TYPE_STRING:

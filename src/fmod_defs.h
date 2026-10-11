@@ -1,6 +1,7 @@
 #pragma once
 #include <godot_cpp/variant/vector4i.hpp>
 
+#include <cstdint>
 #include <fmod.h>
 #include <fmod_studio.h>
 #include <godot_cpp/classes/node2d.hpp>
@@ -9,6 +10,7 @@
 #include <godot_cpp/classes/rigid_body3d.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/vector3.hpp>
+#include <type_traits>
 using namespace godot;
 namespace FmodGodot
 {
@@ -114,7 +116,10 @@ namespace FmodGodot
         ERR_FAIL_COND_V_MSG(err != FMOD_OK, err, vformat("Result: %s %s", FMOD_ErrorString(err), m_msg));              \
     }
 
-typedef size_t Handle;
+// A native FMOD pointer stored as a pointer-sized integer, so std::bit_cast works in both directions.
+// Not size_t: on wasm32 that is unsigned long, which godot-cpp cannot bind.
+// On 64-bit Linux, Windows and Android this is the same type as size_t.
+using Handle = std::conditional_t<sizeof(void *) == 8, uint64_t, uint32_t>;
 typedef uint64_t GD_PARAMETER_ID;
 #define GLOBAL_GET(m_var) ProjectSettings::get_singleton()->get_setting_with_override(m_var)
 

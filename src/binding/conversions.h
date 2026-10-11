@@ -96,7 +96,7 @@ Variant to_variant(FMOD_STUDIO_USER_PROPERTY p_property);
 
 constexpr FMOD_3D_ATTRIBUTES to_3d_attributes(const Transform3D &p_transform)
 {
-    FMOD_3D_ATTRIBUTES attr;
+    FMOD_3D_ATTRIBUTES attr{};
     attr.position = to_fmod_vector(p_transform.origin);
     attr.forward = to_fmod_vector(normalized(-get_column(p_transform.basis, 2)));
     attr.up = to_fmod_vector(normalized(get_column(p_transform.basis, 1)));
@@ -110,7 +110,7 @@ constexpr FMOD_3D_ATTRIBUTES to_3d_attributes(const Transform3D &p_transform, co
 }
 constexpr FMOD_3D_ATTRIBUTES to_3d_attributes(godot::Vector3 p_pos)
 {
-    FMOD_3D_ATTRIBUTES attributes;
+    FMOD_3D_ATTRIBUTES attributes{};
     attributes.forward = {0, 0, -1};
     attributes.up = {0, 1, 0};
     attributes.position = to_fmod_vector(p_pos);
@@ -121,7 +121,7 @@ FMOD_3D_ATTRIBUTES to_3d_attributes(Node3D *p_node);
 FMOD_3D_ATTRIBUTES to_3d_attributes(RigidBody3D *p_rigidbody);
 constexpr FMOD_3D_ATTRIBUTES to_3d_attributes(godot::Vector2 p_pos)
 {
-    FMOD_3D_ATTRIBUTES attributes;
+    FMOD_3D_ATTRIBUTES attributes{};
     attributes.forward = {0, 0, -1};
     attributes.up = {0, 1, 0};
     attributes.position = to_fmod_vector(p_pos);

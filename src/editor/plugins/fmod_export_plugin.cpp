@@ -1,5 +1,6 @@
 #include "fmod_export_plugin.h"
 #include "classes/dir_access.hpp"
+#include "classes/editor_export_platform.hpp"
 #include "classes/file_access.hpp"
 #include "classes/os.hpp"
 #include "classes/project_settings.hpp"
@@ -15,6 +16,34 @@ void FmodGodot::FmodExportPlugin::_export_begin(const PackedStringArray &p_featu
         ProjectSettings::get_singleton()->get_setting_with_override_and_custom_features(PLUGIN_PATH, p_features);
     Dictionary plugins =
         ProjectSettings::get_singleton()->get_setting_with_override_and_custom_features(PLUGINS, p_features);
+    if (p_features.has("web"))
+    {
+        Ref<EditorExportPlatform> platform = get_export_platform();
+        if (platform.is_valid())
+        {
+            if (!plugins.is_empty())
+            {
+                platform->add_message(EditorExportPlatform::EXPORT_MESSAGE_WARNING, "FMOD",
+                                      vformat("FMOD plugins (%s) are not supported on Web and were not exported. "
+                                              "Set \"%s.web\" to an empty Dictionary to silence this warning.",
+                                              PLUGINS, PLUGINS));
+            }
+            if (p_features.has("web_noextensions"))
+            {
+                platform->add_message(EditorExportPlatform::EXPORT_MESSAGE_ERROR, "FMOD",
+                                      "FMOD requires GDExtension support on Web. "
+                                      "Enable Variant > Extensions Support in the export preset.");
+            }
+            if (p_features.has("threads"))
+            {
+                platform->add_message(EditorExportPlatform::EXPORT_MESSAGE_ERROR, "FMOD",
+                                      "FMOD for Web only supports exports without threads. "
+                                      "Disable Variant > Thread Support in the export preset.");
+            }
+        }
+        // The web exporter loads every shared object as a wasm side module, so native plugins would break startup.
+        return;
+    }
     for (String plugin : plugins.keys())
     {
         add_shared_object(plugin, {}, plugin_path);
@@ -38,8 +67,10 @@ void FmodGodot::FmodExportPlugin::_export_file(const String &p_path, const Strin
 {
     if (p_type == "FmodBank")
     {
-        int source_type = ProjectSettings::get_singleton()->get_setting_with_override(SOURCE_TYPE);
-        String bank_directory = ProjectSettings::get_singleton()->get_setting_with_override(BANK_DIRECTORY);
+        int source_type =
+            ProjectSettings::get_singleton()->get_setting_with_override_and_custom_features(SOURCE_TYPE, p_features);
+        String bank_directory =
+            ProjectSettings::get_singleton()->get_setting_with_override_and_custom_features(BANK_DIRECTORY, p_features);
         if (source_type == 0) // Single Platform Build
         {
             return;

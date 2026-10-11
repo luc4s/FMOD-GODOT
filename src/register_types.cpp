@@ -67,7 +67,7 @@
 using namespace godot;
 using namespace FmodGodot;
 
-static FmodAudioServer *audio_server;
+static FmodAudioServer *audio_server = nullptr;
 Ref<FmodBankFormatLoader> bank_format_loader;
 #ifdef TOOLS_ENABLED
 FmodEditorInterface *editor_interface;
@@ -79,7 +79,7 @@ FmodDebuggerClient *debugger_client;
 
 namespace FmodGodot
 {
-static_assert(sizeof(RID) == sizeof(size_t));
+static_assert(sizeof(RID) == sizeof(uint64_t));
 void loadSettings()
 {
     GLOBAL_DEF_RST_BASIC(PropertyInfo(Variant::Type::INT, LIVE_UPDATE, godot::PROPERTY_HINT_ENUM,
@@ -94,6 +94,9 @@ void loadSettings()
     GLOBAL_DEF_BASIC(PropertyInfo(Variant::Type::INT, VIRTUAL_COUNT, PROPERTY_HINT_RANGE, "0,4095"), 1024);
     GLOBAL_DEF_BASIC(BUFFER_LENGTH, 1024);
     GLOBAL_DEF_BASIC(BUFFER_COUNT, 4);
+    // FMOD recommends 2 blocks of 2048 samples on HTML5, some devices stutter with 4 blocks of 1024.
+    GLOBAL_DEF_BASIC(BUFFER_LENGTH + String(".web"), 2048);
+    GLOBAL_DEF_BASIC(BUFFER_COUNT + String(".web"), 2);
     GLOBAL_DEF_BASIC(DOPPLER_SCALE, 1.0);
     GLOBAL_DEF_BASIC(DISTANCE_FACTOR, 1.0);
     GLOBAL_DEF_BASIC(ROLLOFF_SCALE, 1.0);
@@ -229,6 +232,8 @@ void uninitialize_fmod_module(ModuleInitializationLevel p_level)
         audio_server->finish();
         Engine::get_singleton()->unregister_singleton("FmodAudioServer");
         memdelete(audio_server);
+        audio_server = nullptr;
+        FmodAudioServer::singleton = nullptr;
 #ifdef DEBUG_ENABLED
         memdelete(debugger_client);
 #endif
@@ -248,6 +253,21 @@ void uninitialize_fmod_module(ModuleInitializationLevel p_level)
     }
 }
 
+static void on_main_loop_startup()
+{
+    if (audio_server)
+    {
+        audio_server->_on_main_loop_started();
+    }
+}
+static void on_main_loop_frame()
+{
+    if (audio_server)
+    {
+        audio_server->_main_thread_update();
+    }
+}
+
 extern "C"
 {
     // Initialization.
@@ -260,6 +280,8 @@ extern "C"
         init_obj.register_initializer(initialize_fmod_module);
         init_obj.register_terminator(uninitialize_fmod_module);
         init_obj.set_minimum_library_initialization_level(MODULE_INITIALIZATION_LEVEL_CORE);
+        init_obj.register_startup_callback(on_main_loop_startup);
+        init_obj.register_frame_callback(on_main_loop_frame);
 
         return init_obj.init();
     }

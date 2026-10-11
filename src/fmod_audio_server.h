@@ -6,6 +6,7 @@
 #include "fmod_bank.h"
 #include "fmod_init_settings.h"
 #include "variant/variant.hpp"
+#include <atomic>
 #include <classes/node.hpp>
 #include <fmod.h>
 #include <fmod_studio.h>
@@ -90,7 +91,11 @@ class FmodAudioServer : public Object
             RigidBody2D *rigidBody2D;
             RigidBody3D *rigidBody3D;
         };
+        // Used to detect a freed node before dereferencing `node`.
+        uint64_t node_id = 0;
         Vector3 lastFramePosition;
+        // Velocity of a Node2D/Node3D, computed every physics frame when nonRigidbodyVelocity is set.
+        Vector3 velocity;
         bool nonRigidbodyVelocity = false;
     };
 
@@ -203,10 +208,12 @@ class FmodAudioServer : public Object
     void _attach_instance(T *p_node, FMOD_STUDIO_EVENTINSTANCE *p_event);
     LocalVector<AttachedInstance> instances;
     void _thread_func();
+    void _update_step();
+    void _sync_attached_instances();
     int _find_instance(FMOD_STUDIO_EVENTINSTANCE *p_event);
+    bool _is_attached_node_valid(const AttachedInstance &p_instance) const;
 
-    bool thread_exited;
-    mutable bool exit_thread = false;
+    std::atomic<bool> exit_thread = false;
     Ref<Thread> thread;
     Mutex mutex;
     void _physics_process();
@@ -216,6 +223,13 @@ class FmodAudioServer : public Object
     static FmodAudioServer *get_singleton();
     FMOD_RESULT init_with_project_settings();
     FMOD_RESULT init(const InitSettings &p_settings);
+
+    // Called by the extension's main loop callbacks.
+    void _on_main_loop_started();
+    void _main_thread_update();
+
+    void mixer_suspend();
+    void mixer_resume();
 
     void lock();
     void unlock();
@@ -232,6 +246,11 @@ inline void FmodAudioServer::_set_listener_location(T *p_node, int p_listener_in
     FMOD_3D_ATTRIBUTES node_attr;
     FMOD_VECTOR attenuation_attr;
     node_attr = to_3d_attributes(p_node);
+    if constexpr (!(std::is_base_of_v<godot::RigidBody2D, T> || std::is_base_of_v<godot::RigidBody3D, T>))
+    {
+        // Only rigid bodies provide a velocity.
+        node_attr.velocity = {0, 0, 0};
+    }
     if (p_attenuation_object)
     {
         attenuation_attr = to_fmod_vector(p_attenuation_object->get_global_position());
@@ -281,19 +300,22 @@ inline void FmodAudioServer::_attach_instance(T *p_node, FMOD_STUDIO_EVENTINSTAN
         instances.push_back(instance);
     }
     instances[instance_index].node = p_node;
+    instances[instance_index].node_id = p_node->get_instance_id();
     instances[instance_index].nonRigidbodyVelocity = false;
+    instances[instance_index].velocity = Vector3();
     instances[instance_index].attachment = get_attachment_type<T>();
     if constexpr (std::is_base_of_v<Node2D, T>)
     {
-        instances[instance_index].lastFramePosition = {p_node->get_position().x, p_node->get_position().y, 0};
+        instances[instance_index].lastFramePosition = {p_node->get_global_position().x, p_node->get_global_position().y,
+                                                       0};
     }
     else if constexpr (std::is_base_of_v<Node3D, T>)
     {
-        instances[instance_index].lastFramePosition = p_node->get_position();
+        instances[instance_index].lastFramePosition = p_node->get_global_position();
     }
+    instances[instance_index].instance = p_event;
     FMOD_3D_ATTRIBUTES attributes = to_3d_attributes(p_node);
     FMOD_Studio_EventInstance_Set3DAttributes(instances[instance_index].instance, &attributes);
-    instances[instance_index].instance = p_event;
     unlock();
 }
 
@@ -316,19 +338,22 @@ inline void FmodAudioServer::_attach_instance(T *p_node, FMOD_STUDIO_EVENTINSTAN
         instances.push_back(instance);
     }
     instances[instance_index].node = p_node;
+    instances[instance_index].node_id = p_node->get_instance_id();
     instances[instance_index].nonRigidbodyVelocity = p_non_rigid_body_velocity;
+    instances[instance_index].velocity = Vector3();
     instances[instance_index].attachment = get_attachment_type<T>();
     if constexpr (std::is_base_of_v<Node2D, T>)
     {
-        instances[instance_index].lastFramePosition = {p_node->get_position().x, p_node->get_position().y, 0};
+        instances[instance_index].lastFramePosition = {p_node->get_global_position().x, p_node->get_global_position().y,
+                                                       0};
     }
     else if constexpr (std::is_base_of_v<Node3D, T>)
     {
-        instances[instance_index].lastFramePosition = p_node->get_position();
+        instances[instance_index].lastFramePosition = p_node->get_global_position();
     }
+    instances[instance_index].instance = p_event;
     FMOD_3D_ATTRIBUTES attributes = to_3d_attributes(p_node);
     FMOD_Studio_EventInstance_Set3DAttributes(instances[instance_index].instance, &attributes);
-    instances[instance_index].instance = p_event;
     unlock();
 }
 } // namespace FmodGodot

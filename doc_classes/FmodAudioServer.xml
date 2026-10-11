@@ -148,6 +148,19 @@
 				if [code]true[/code] game is connected to fmod studio.
 			</description>
 		</method>
+		<method name="mixer_resume">
+			<return type="void" />
+			<description>
+				Resumes the FMOD mixer and audio output after [method mixer_suspend].
+				[b]Note:[/b] On the Web platform, browsers only allow audio to start from a user gesture. Audio is unlocked automatically on the first click, tap or key press, so this isn't needed for that.
+			</description>
+		</method>
+		<method name="mixer_suspend">
+			<return type="void" />
+			<description>
+				Suspends the FMOD mixer and audio output, for example while the game is paused or in the background. Use [method mixer_resume] to resume.
+			</description>
+		</method>
 		<method name="path_to_guid" qualifiers="const">
 			<return type="Vector4i" />
 			<param index="0" name="path" type="String" />

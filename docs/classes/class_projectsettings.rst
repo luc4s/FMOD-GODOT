@@ -410,6 +410,10 @@ Specifies when to accept connections to the game from FMOD Studio. This should b
 
                     Development Build Only - Only accept connections from FMOD Studio when running a development build.
 
+
+
+                    **Note:** Live Update is not supported on the Web platform.
+
 .. rst-class:: classref-item-separator
 
 ----
@@ -470,6 +474,8 @@ int **fmod/general/dsp/buffer_length** :ref:`🔗<class_ProjectSettings_property
 
 The length of each DSP buffer.
 
+                    **Note:** On the Web platform, the ``fmod/general/dsp/buffer_length.web`` override (2048 by default, as recommended by FMOD for HTML5) is used instead.
+
 .. rst-class:: classref-item-separator
 
 ----
@@ -481,6 +487,8 @@ The length of each DSP buffer.
 int **fmod/general/dsp/buffer_count** :ref:`🔗<class_ProjectSettings_property_fmod/general/dsp/buffer_count>`
 
 The number of DSP buffers to use.
+
+                    **Note:** On the Web platform, the ``fmod/general/dsp/buffer_count.web`` override (2 by default, as recommended by FMOD for HTML5) is used instead.
 
 .. rst-class:: classref-item-separator
 
@@ -530,6 +538,8 @@ Dictionary **fmod/plugins/plugins** :ref:`🔗<class_ProjectSettings_property_fm
 
 List of dynamic plugins to load. (for example, "resonanceaudio.dll" contains the Windows versions of the ResonanceAudio plugins). Each platform requires its own version of the dynamic library;
 
+                    **Note:** Plugins are not supported on the Web platform, they are skipped with a warning.
+
 .. rst-class:: classref-item-separator
 
 ----
@@ -541,6 +551,8 @@ List of dynamic plugins to load. (for example, "resonanceaudio.dll" contains the
 String **fmod/plugins/path** :ref:`🔗<class_ProjectSettings_property_fmod/plugins/path>`
 
 base search path for plug-ins so they can be placed somewhere else than the directory of the main executable. If this is set, the filename parameter of System::loadPlugin is assumed to be relative to this path.
+
+                    **Note:** Plugins are not supported on the Web platform.
 
 .. |virtual| replace:: :abbr:`virtual (This method should typically be overridden by the user to have any effect.)`
 .. |required| replace:: :abbr:`required (This method is required to be overridden when extending its base class.)`
