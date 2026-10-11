@@ -30,7 +30,9 @@ empty, they are relative to the project folder (``res://``).
 .. image:: img/project_settings.png
 
 Plugins are loaded when FMOD starts, so after changing these settings restart the editor, or use *Restart Server* in
-the menu of the FMOD event browser. If a plugin can't be loaded, the error is printed in the Output panel.
+the menu of the FMOD event browser. If a plugin can't be loaded, an error is printed. When the editor starts, this
+happens before the Output panel exists, so the error only appears in the terminal that started the editor; use
+*Restart Server* to see it in the Output panel.
 
 Exporting
 ---------

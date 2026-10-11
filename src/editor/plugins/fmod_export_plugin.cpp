@@ -144,6 +144,7 @@ void FmodExportPlugin::_export_begin(const PackedStringArray &p_features, bool p
         // The web exporter loads every shared object as a wasm side module, so native plugins would break startup.
         return;
     }
+    Dictionary exported_files; // File name (per ABI on Android) -> key, the copies would overwrite each other.
     for (const Variant &plugin : plugins.keys())
     {
         String path = FmodAudioServer::_get_plugin_project_path(plugin, plugin_path);
@@ -174,6 +175,16 @@ void FmodExportPlugin::_export_begin(const PackedStringArray &p_features, bool p
             }
             tags.push_back(arch);
         }
+        String exported_file = tags.is_empty() ? path.get_file() : tags[0] + "/" + path.get_file();
+        if (exported_files.has(exported_file))
+        {
+            _add_message(EditorExportPlatform::EXPORT_MESSAGE_WARNING,
+                         vformat("FMOD plugins \"%s\" and \"%s\" have the same file name, only \"%s\" was "
+                                 "exported. Use feature overrides to list one library per platform.",
+                                 exported_files[exported_file], plugin, exported_files[exported_file]));
+            continue;
+        }
+        exported_files[exported_file] = plugin;
         // No target: the library goes where the platform keeps native libraries, next to the executable on
         // Windows and Linux, in Contents/Frameworks on macOS and in lib/<abi> on Android.
         // FmodAudioServer::_get_plugin_load_path() loads it from there.
