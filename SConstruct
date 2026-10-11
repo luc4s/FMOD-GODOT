@@ -1,6 +1,8 @@
 #!/usr/bin/env python
+import json
 import os
 import re
+import shutil
 import sys
 from methods import print_error
 
@@ -13,22 +15,40 @@ if target_platform == "web":
     ARGUMENTS.setdefault("threads", "no")
 
 
-def generated_bindings_match_target():
-    # godot-cpp regenerates its bindings when the API or build profile changes, but not when the target's word size
-    # does, e.g. a linux build followed by a web build in the same checkout. The stale sizes break the web build at
-    # runtime, so detect that from the generated Array size (pointer sized).
-    array_header = os.path.join("godot-cpp", "gen", "include", "godot_cpp", "variant", "array.hpp")
+def godot_cpp_bindings_are_stale():
+    # godot-cpp only regenerates its bindings when the API or the build profile file changes. Detect generated
+    # bindings that don't fit this build, so they are regenerated before SCons scans the sources:
+    # - another word size (e.g. a linux build followed by a web build) compiles, but the web build breaks at runtime;
+    # - another build profile (e.g. editor followed by template_release): SCons still finds the editor headers when it
+    #   scans the sources, and the build fails with "editor_interface.hpp: No such file or directory".
+    gen_include = os.path.join("godot-cpp", "gen", "include", "godot_cpp")
+    array_header = os.path.join(gen_include, "variant", "array.hpp")
     if not os.path.isfile(array_header):
-        return True
+        return False
     arch = ARGUMENTS.get("arch", "wasm32" if target_platform == "web" else "")
     is_32_bit = "32" in arch if arch else sys.maxsize <= 2**32
     with open(array_header, encoding="utf-8") as header:
         generated = re.search(r"ARRAY_SIZE = (\d+);", header.read())
-    return generated is None or generated.group(1) == ("4" if is_32_bit else "8")
+    if generated is not None and generated.group(1) != ("4" if is_32_bit else "8"):
+        return True
+    profile_path = ARGUMENTS.get("build_profile", "")
+    expects_editor_classes = True  # Without a profile, the whole API is generated.
+    if profile_path:
+        try:
+            with open(profile_path, encoding="utf-8") as profile_file:
+                profile = json.load(profile_file)
+        except (OSError, ValueError):
+            return False
+        if "enabled_classes" in profile:
+            expects_editor_classes = "EditorInterface" in profile["enabled_classes"]
+        else:
+            expects_editor_classes = "EditorInterface" not in profile.get("disabled_classes", [])
+    has_editor_classes = os.path.isfile(os.path.join(gen_include, "classes", "editor_interface.hpp"))
+    return expects_editor_classes != has_editor_classes
 
 
-if not generated_bindings_match_target():
-    ARGUMENTS["generate_bindings"] = "yes"
+if godot_cpp_bindings_are_stale():
+    shutil.rmtree(os.path.join("godot-cpp", "gen"))
 
 env = SConscript("godot-cpp/SConstruct")
 source_path = [
