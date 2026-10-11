@@ -10,7 +10,7 @@ class FmodEventAudioStreamPlayback : public AudioStreamPlayback
     GDCLASS(FmodEventAudioStreamPlayback, AudioStreamPlayback);
 
   private:
-    FMOD_STUDIO_EVENTINSTANCE *instance;
+    FMOD_STUDIO_EVENTINSTANCE *instance = nullptr;
 
   protected:
     static void _bind_methods();

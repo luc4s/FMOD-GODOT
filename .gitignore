@@ -11,6 +11,8 @@ git-filter-repo
 /headers/*.cs
 /headers/*.hpp
 /libs/**/*
+# FMOD SDK archives and folders downloaded by fmod_installer.py
+/fmodstudioapi*
 *.lib
 *.exp
 *.idx

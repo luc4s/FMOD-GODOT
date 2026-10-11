@@ -3,6 +3,7 @@
 #include "fmod_defs.h"
 #include "fmod_enums.h"
 #include "globals.h"
+#include <godot_cpp/templates/local_vector.hpp>
 using namespace godot;
 using namespace FmodGodot::Studio;
 using namespace FmodGodot;
@@ -264,17 +265,29 @@ Handle FmodGodot::Studio::StudioEventDescription::create_instance(Handle p_handl
 }
 int FmodGodot::Studio::StudioEventDescription::get_instance_count(Handle p_handle)
 {
-    int count;
+    int count = 0;
     FMOD_Studio_EventDescription_GetInstanceCount((FMOD_STUDIO_EVENTDESCRIPTION *)p_handle, &count);
     return count;
 }
 PackedInt64Array FmodGodot::Studio::StudioEventDescription::get_instance_list(Handle p_handle)
 {
     PackedInt64Array instance_list;
-    instance_list.resize(get_instance_count(p_handle));
-    FMOD_Studio_EventDescription_GetInstanceList((FMOD_STUDIO_EVENTDESCRIPTION *)p_handle,
-                                                 (FMOD_STUDIO_EVENTINSTANCE **)instance_list.ptrw(),
-                                                 get_instance_count(p_handle), nullptr);
+    const int count = get_instance_count(p_handle);
+    if (count <= 0)
+    {
+        return instance_list;
+    }
+    // FMOD writes native pointers, which are 4 bytes on wasm32, so they cannot go straight into int64 storage.
+    LocalVector<FMOD_STUDIO_EVENTINSTANCE *> list;
+    list.resize(count);
+    int retrieved = 0;
+    FMOD_Studio_EventDescription_GetInstanceList((FMOD_STUDIO_EVENTDESCRIPTION *)p_handle, list.ptr(), count,
+                                                 &retrieved);
+    instance_list.resize(retrieved);
+    for (int i = 0; i < retrieved; i++)
+    {
+        instance_list.set(i, (Handle)list[i]);
+    }
     return instance_list;
 }
 FMOD_RESULT FmodGodot::Studio::StudioEventDescription::load_sample_data(Handle p_handle)

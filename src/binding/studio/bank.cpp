@@ -5,6 +5,7 @@
 #include "globals.h"
 #include "vca.h"
 #include <bit>
+#include <godot_cpp/templates/local_vector.hpp>
 using namespace FmodGodot;
 using namespace Studio;
 void FmodGodot::Studio::StudioBank::_bind_methods()
@@ -80,56 +81,80 @@ godot::String FmodGodot::Studio::StudioBank::get_string_info(Handle p_handle, in
 }
 int FmodGodot::Studio::StudioBank::get_event_count(Handle p_handle)
 {
-    int count;
+    int count = 0;
     FMOD_Studio_Bank_GetEventCount(std::bit_cast<FMOD_STUDIO_BANK *>(p_handle), &count);
     return count;
 }
 godot::PackedInt64Array FmodGodot::Studio::StudioBank::get_event_list(Handle p_handle)
 {
     PackedInt64Array ret;
-    ret.resize(get_event_count(p_handle));
-    if (ret.size() == 0)
+    const int count = get_event_count(p_handle);
+    if (count <= 0)
     {
         return ret;
     }
-    FMOD_Studio_Bank_GetEventList(std::bit_cast<FMOD_STUDIO_BANK *>(p_handle),
-                                  std::bit_cast<FMOD_STUDIO_EVENTDESCRIPTION **>(ret.ptrw()), ret.size(), nullptr);
+    // FMOD writes native pointers, which are 4 bytes on wasm32, so they cannot go straight into int64 storage.
+    LocalVector<FMOD_STUDIO_EVENTDESCRIPTION *> list;
+    list.resize(count);
+    int retrieved = 0;
+    FMOD_Studio_Bank_GetEventList(std::bit_cast<FMOD_STUDIO_BANK *>(p_handle), list.ptr(), count, &retrieved);
+    ret.resize(retrieved);
+    for (int i = 0; i < retrieved; i++)
+    {
+        ret.set(i, std::bit_cast<Handle>(list[i]));
+    }
     return ret;
 }
 int FmodGodot::Studio::StudioBank::get_bus_count(Handle p_handle)
 {
-    int count;
+    int count = 0;
     FMOD_Studio_Bank_GetBusCount(std::bit_cast<FMOD_STUDIO_BANK *>(p_handle), &count);
     return count;
 }
 godot::PackedInt64Array FmodGodot::Studio::StudioBank::get_bus_list(Handle p_handle)
 {
     PackedInt64Array ret;
-    ret.resize(get_bus_count(p_handle));
-    if (ret.size() == 0)
+    const int count = get_bus_count(p_handle);
+    if (count <= 0)
     {
         return ret;
     }
-    FMOD_Studio_Bank_GetBusList(std::bit_cast<FMOD_STUDIO_BANK *>(p_handle),
-                                std::bit_cast<FMOD_STUDIO_BUS **>(ret.ptrw()), ret.size(), nullptr);
+    // FMOD writes native pointers, which are 4 bytes on wasm32, so they cannot go straight into int64 storage.
+    LocalVector<FMOD_STUDIO_BUS *> list;
+    list.resize(count);
+    int retrieved = 0;
+    FMOD_Studio_Bank_GetBusList(std::bit_cast<FMOD_STUDIO_BANK *>(p_handle), list.ptr(), count, &retrieved);
+    ret.resize(retrieved);
+    for (int i = 0; i < retrieved; i++)
+    {
+        ret.set(i, std::bit_cast<Handle>(list[i]));
+    }
     return ret;
 }
 int FmodGodot::Studio::StudioBank::get_vca_count(Handle p_handle)
 {
-    int count;
+    int count = 0;
     FMOD_Studio_Bank_GetVCACount(std::bit_cast<FMOD_STUDIO_BANK *>(p_handle), &count);
     return count;
 }
 godot::PackedInt64Array FmodGodot::Studio::StudioBank::get_vca_list(Handle p_handle)
 {
     PackedInt64Array ret;
-    ret.resize(get_vca_count(p_handle));
-    if (ret.size() == 0)
+    const int count = get_vca_count(p_handle);
+    if (count <= 0)
     {
         return ret;
     }
-    FMOD_Studio_Bank_GetVCAList(std::bit_cast<FMOD_STUDIO_BANK *>(p_handle),
-                                std::bit_cast<FMOD_STUDIO_VCA **>(ret.ptrw()), ret.size(), nullptr);
+    // FMOD writes native pointers, which are 4 bytes on wasm32, so they cannot go straight into int64 storage.
+    LocalVector<FMOD_STUDIO_VCA *> list;
+    list.resize(count);
+    int retrieved = 0;
+    FMOD_Studio_Bank_GetVCAList(std::bit_cast<FMOD_STUDIO_BANK *>(p_handle), list.ptr(), count, &retrieved);
+    ret.resize(retrieved);
+    for (int i = 0; i < retrieved; i++)
+    {
+        ret.set(i, std::bit_cast<Handle>(list[i]));
+    }
     return ret;
 }
 void *FmodGodot::Studio::StudioBank::get_user_data(Handle p_handle)

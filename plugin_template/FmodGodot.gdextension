@@ -35,6 +35,9 @@ android.editor.arm64 = "bin/android/arm64/libFmodGodot.editor.so"
 android.debug.arm64 = "bin/android/arm64/libFmodGodot.template_debug.so"
 android.release.arm64 = "bin/android/arm64/libFmodGodot.template_release.so"
 
+web.debug.nothreads.wasm32 = "bin/web/wasm32/libFmodGodot.template_debug.nothreads.wasm"
+web.release.nothreads.wasm32 = "bin/web/wasm32/libFmodGodot.template_release.nothreads.wasm"
+
 ;ios.debug  = "bin/ios/libFmodGodot.template_debug.xcframework"
 ;ios.editor  = "bin/ios/libFmodGodot.template_debug.xcframework"
 ;ios.release  = "bin/ios/libFmodGodot.template_release.xcframework"

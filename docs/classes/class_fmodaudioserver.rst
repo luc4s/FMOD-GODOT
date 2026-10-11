@@ -75,6 +75,10 @@ Methods
    +-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
    | bool                                          | :ref:`is_live_update_connected<class_FmodAudioServer_method_is_live_update_connected>`\ (\ ) |const|                                                                                                       |
    +-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+   | |void|                                        | :ref:`mixer_resume<class_FmodAudioServer_method_mixer_resume>`\ (\ )                                                                                                                                       |
+   +-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+   | |void|                                        | :ref:`mixer_suspend<class_FmodAudioServer_method_mixer_suspend>`\ (\ )                                                                                                                                     |
+   +-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
    | Vector4i                                      | :ref:`path_to_guid<class_FmodAudioServer_method_path_to_guid>`\ (\ path\: String\ ) |const|                                                                                                                |
    +-----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
    | |void|                                        | :ref:`pause_all_events<class_FmodAudioServer_method_pause_all_events>`\ (\ pause\: bool\ )                                                                                                                 |
@@ -484,6 +488,34 @@ Check if bank at path to file or id string is loaded.
 bool **is_live_update_connected**\ (\ ) |const| :ref:`🔗<class_FmodAudioServer_method_is_live_update_connected>`
 
 if ``true`` game is connected to fmod studio.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_FmodAudioServer_method_mixer_resume:
+
+.. rst-class:: classref-method
+
+|void| **mixer_resume**\ (\ ) :ref:`🔗<class_FmodAudioServer_method_mixer_resume>`
+
+Resumes the FMOD mixer and audio output after :ref:`mixer_suspend()<class_FmodAudioServer_method_mixer_suspend>`.
+
+\ **Note:** On the Web platform, browsers only allow audio to start from a user gesture. Audio is unlocked automatically on the first click, tap or key press, so this isn't needed for that.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_FmodAudioServer_method_mixer_suspend:
+
+.. rst-class:: classref-method
+
+|void| **mixer_suspend**\ (\ ) :ref:`🔗<class_FmodAudioServer_method_mixer_suspend>`
+
+Suspends the FMOD mixer and audio output, for example while the application is in the background or the operating system interrupts audio. Use :ref:`mixer_resume()<class_FmodAudioServer_method_mixer_resume>` to resume.
+
+FMOD is not updated while the mixer is suspended, and other FMOD functions should not be called until it is resumed. To pause the game's audio, use :ref:`pause_all_events()<class_FmodAudioServer_method_pause_all_events>` instead.
 
 .. rst-class:: classref-item-separator
 

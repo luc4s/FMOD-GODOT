@@ -56,6 +56,8 @@
                     Enabled - Always accept connections from FMOD Studio.
 
                     Development Build Only - Only accept connections from FMOD Studio when running a development build.
+
+                    [b]Note:[/b] Live Update is not supported on the Web platform.
 		</member>
                 <member name="fmod/general/live_update_port" type="int" setter="" getter="">
                     The network port that FMOD will use to accept connections from FMOD Studio.
@@ -71,9 +73,11 @@
 		</member>
                 <member name="fmod/general/dsp/buffer_length" type="int" setter="" getter="">
                     The length of each DSP buffer.
+                    [b]Note:[/b] On the Web platform, the [code]fmod/general/dsp/buffer_length.web[/code] override (2048 by default, as recommended by FMOD for HTML5) is used instead.
 		</member>
                 <member name="fmod/general/dsp/buffer_count" type="int" setter="" getter="">
                     The number of DSP buffers to use.
+                    [b]Note:[/b] On the Web platform, the [code]fmod/general/dsp/buffer_count.web[/code] override (2 by default, as recommended by FMOD for HTML5) is used instead.
 		</member>
                 <member name="fmod/general/3d_settings/doppler_scale" type="float" setter="" getter="">
                     A scaling factor for doppler shift.
@@ -86,9 +90,11 @@
 		</member>
                 <member name="fmod/plugins/plugins" type="Dictionary" setter="" getter="">
                     List of dynamic plugins to load. (for example, "resonanceaudio.dll" contains the Windows versions of the ResonanceAudio plugins). Each platform requires its own version of the dynamic library;
+                    [b]Note:[/b] Plugins are not supported on the Web platform, they are skipped with a warning.
 		</member>
                 <member name="fmod/plugins/path" type="String" setter="" getter="">
                     base search path for plug-ins so they can be placed somewhere else than the directory of the main executable. If this is set, the filename parameter of System::loadPlugin is assumed to be relative to this path.
+                    [b]Note:[/b] Plugins are not supported on the Web platform.
 		</member>
 
 	</members>

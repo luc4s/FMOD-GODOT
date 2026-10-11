@@ -56,7 +56,8 @@ void FmodDebuggerClient::update_live_update(bool p_is_live_update_connected)
     if (!Engine::get_singleton()->is_editor_hint())
     {
         EngineDebugger *debugger = EngineDebugger::get_singleton();
-        if (debugger != nullptr)
+        // Not active when the game runs without the editor's debugger, e.g. an exported debug build.
+        if (debugger != nullptr && debugger->is_active())
         {
             debugger->send_message("fmod:live_update", {p_is_live_update_connected});
         }

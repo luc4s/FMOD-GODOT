@@ -9,9 +9,19 @@ on:
       - 'master'
     paths:
       - 'src/**'
+      - 'SConstruct'
+      - '*.py'
+      - 'build_profile*.json'
+      - 'plugin_template/FmodGodot.gdextension'
+      - '.github/workflows/**'
   pull_request:
     paths:
       - 'src/**'
+      - 'SConstruct'
+      - '*.py'
+      - 'build_profile*.json'
+      - 'plugin_template/FmodGodot.gdextension'
+      - '.github/workflows/**'
   merge_group:
 
 jobs:
@@ -24,22 +34,26 @@ jobs:
         # By building just with a few combinations, we only need a few runners,
         # while still achieving adequate coverage.
         # To make a full build with all combinations, use the make_build.yml workflow instead.
+        # "flags" holds extra SCons arguments for an entry (empty when none are needed).
         include:
           - target: { platform: linux, arch: x86_64, os: ubuntu-22.04 }
             target-type: editor
             build-profile: build_profile_editor.json
             float-precision: single
             api-version: 4.6
+            flags: ""
           - target: { platform: windows, arch: x86_64, os: windows-latest }
             target-type: editor
             build-profile: build_profile_editor.json
             float-precision: single
             api-version: 4.6
+            flags: ""
           - target: { platform: linux, arch: x86_64, os: ubuntu-22.04 }
             target-type: template_release
             build-profile: build_profile.json
             float-precision: single
             api-version: 4.6
+            flags: ""
           # - target: { platform: macos, arch: universal, os: macos-latest }
           #   target-type: template_debug
           #   float-precision: single
@@ -48,9 +62,21 @@ jobs:
             build-profile: build_profile.json
             float-precision: single
             api-version: 4.6
-          # - target: { platform: web, arch: wasm32, os: ubuntu-22.04 }
-          #   target-type: template_release
-          #   float-precision: double
+            flags: ""
+          # Web only supports single-threaded (nothreads) builds for now.
+          # Both targets are built because they link different FMOD libraries (logging vs. release).
+          - target: { platform: web, arch: wasm32, os: ubuntu-22.04 }
+            target-type: template_debug
+            build-profile: build_profile.json
+            float-precision: single
+            api-version: 4.6
+            flags: threads=no
+          - target: { platform: web, arch: wasm32, os: ubuntu-22.04 }
+            target-type: template_release
+            build-profile: build_profile.json
+            float-precision: single
+            api-version: 4.6
+            flags: threads=no
 
     runs-on: ${{ matrix.target.os }}
     steps:
@@ -81,7 +107,8 @@ jobs:
         uses: ./godot-cpp/.github/actions/setup-godot-cpp
         with:
           platform: ${{ matrix.target.platform }}
-          em-version: 3.1.62
+          # Must match the Emscripten version of the Godot 4.6 web export templates.
+          em-version: 4.0.11
 
       # Install Python Requests
       - name: Install python requests
@@ -105,7 +132,7 @@ jobs:
         env:
           SCONS_CACHE: ${{ github.workspace }}/.scons-cache/
         run: |
-          scons target=${{ matrix.target-type }} use_static_cpp=yes platform=${{ matrix.target.platform }} arch=${{ matrix.target.arch }} precision=${{ matrix.float-precision }} api_version=${{ matrix.api-version }} build_profile=${{ matrix.build-profile }}
+          scons target=${{ matrix.target-type }} use_static_cpp=yes platform=${{ matrix.target.platform }} arch=${{ matrix.target.arch }} precision=${{ matrix.float-precision }} api_version=${{ matrix.api-version }} build_profile=${{ matrix.build-profile }} ${{ matrix.flags }}
 
       - name: Save .scons_cache
         uses: ./godot-cpp/.github/actions/godot-cache-save

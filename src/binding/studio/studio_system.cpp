@@ -5,6 +5,7 @@
 #include "globals.h"
 #include "variant/packed_float32_array.hpp"
 #include <bit>
+#include <godot_cpp/templates/local_vector.hpp>
 namespace FmodGodot
 {
 namespace Studio
@@ -322,25 +323,33 @@ FMOD_RESULT StudioSystem::unload_all(Handle p_handle)
 }
 int StudioSystem::get_bank_count(Handle p_handle)
 {
-    int count;
+    int count = 0;
     FMOD_Studio_System_GetBankCount(std::bit_cast<FMOD_STUDIO_SYSTEM *>(p_handle), &count);
     return count;
 }
 godot::PackedInt64Array StudioSystem::get_bank_list(Handle p_handle)
 {
     PackedInt64Array banks;
-    banks.resize(get_bank_count(p_handle));
-    if (banks.size() == 0)
+    const int count = get_bank_count(p_handle);
+    if (count <= 0)
     {
         return banks;
     }
-    FMOD_Studio_System_GetBankList(std::bit_cast<FMOD_STUDIO_SYSTEM *>(p_handle),
-                                   std::bit_cast<FMOD_STUDIO_BANK **>(banks.ptr()), banks.size(), nullptr);
+    // FMOD writes native pointers, which are 4 bytes on wasm32, so they cannot go straight into int64 storage.
+    LocalVector<FMOD_STUDIO_BANK *> list;
+    list.resize(count);
+    int retrieved = 0;
+    FMOD_Studio_System_GetBankList(std::bit_cast<FMOD_STUDIO_SYSTEM *>(p_handle), list.ptr(), count, &retrieved);
+    banks.resize(retrieved);
+    for (int i = 0; i < retrieved; i++)
+    {
+        banks.set(i, std::bit_cast<Handle>(list[i]));
+    }
     return banks;
 }
 int StudioSystem::get_parameter_description_count(Handle p_handle)
 {
-    int count;
+    int count = 0;
     FMOD_Studio_System_GetParameterDescriptionCount(std::bit_cast<FMOD_STUDIO_SYSTEM *>(p_handle), &count);
     return count;
 }

@@ -9,6 +9,7 @@ import getpass
 import platform
 import shutil
 import subprocess
+import zipfile
 
 ERR_LOGIN = 1
 ERR_DOWNLOAD = 2
@@ -60,6 +61,9 @@ def get_download_link(version: str, platform: str):
     elif platform == "ios":
         # iOS...
         return f"https://www.fmod.com/api-get-download-link?path=files/fmodstudio/api/iOS/&filename=fmodstudioapi{version}ios-installer.dmg&user=$1"
+    elif platform == "web":
+        # HTML5...
+        return f"https://www.fmod.com/api-get-download-link?path=files/fmodstudio/api/HTML5/&filename=fmodstudioapi{version}html5.zip&user="
 
 
 def get_file_name(version: str, platform: str) -> str:
@@ -78,6 +82,9 @@ def get_file_name(version: str, platform: str) -> str:
     elif platform == "ios":
         # iOS...
         return f"fmodstudioapi{version}ios.dmg"
+    elif platform == "web":
+        # HTML5...
+        return f"fmodstudioapi{version}html5.zip"
     else:
         return f"fmodstudioapi{version}linux.tar.gz"
 
@@ -90,7 +97,7 @@ def download_version(version: str, token: str, target_platform: str):
         exit(ERR_DOWNLOAD)
     # Next request a download link using the token!
     response = requests.get(downloadlink, headers={"Authorization": f"Bearer {token}"})
-    if response.status_code < 200 and response.status_code >= 300:
+    if response.status_code < 200 or response.status_code >= 300:
         logging.error("Failed to get download link")
         exit(ERR_DOWNLOAD)
     url = response.json()["url"]
@@ -136,19 +143,23 @@ def get_os() -> str:
             exit(ERR_UNSUPPORTED_OS)
 
 
-def copy_headers_and_libs(base_path: str, platform: str):
+def copy_headers(base_path: str):
     core_inc = os.path.join(base_path, "core", "inc")
-    core_lib = os.path.join(base_path, "core", "lib")
     studio_inc = os.path.join(base_path, "studio", "inc")
-    studio_lib = os.path.join(base_path, "studio", "lib")
     inc_dst = os.path.join(script_dir, "headers")
-    lib_dst = os.path.join(script_dir, "libs", platform)
-    os.makedirs(lib_dst, exist_ok=True)
     os.makedirs(inc_dst, exist_ok=True)
     for f in os.listdir(core_inc):
         shutil.copy(os.path.join(core_inc, f), inc_dst)
     for f in os.listdir(studio_inc):
         shutil.copy(os.path.join(studio_inc, f), inc_dst)
+
+
+def copy_headers_and_libs(base_path: str, platform: str):
+    core_lib = os.path.join(base_path, "core", "lib")
+    studio_lib = os.path.join(base_path, "studio", "lib")
+    lib_dst = os.path.join(script_dir, "libs", platform)
+    os.makedirs(lib_dst, exist_ok=True)
+    copy_headers(base_path)
     shutil.copytree(
         core_lib, os.path.join(script_dir, "libs", platform), dirs_exist_ok=True
     )
@@ -184,6 +195,26 @@ def setup_android(token: str, version: str):
     if isdir(os.path.join(lib_dst, "arm")):
         shutil.rmtree(os.path.join(lib_dst, "arm"))
     shutil.move(os.path.join(lib_dst, "armeabi-v7a"), os.path.join(lib_dst, "arm"))
+
+
+def setup_web(token: str, version: str):
+    download_version(version, token, "web")
+    filename: str = get_file_name(version, "web")
+    archive = os.path.join(script_dir, filename)
+    extracted = os.path.join(script_dir, filename.removesuffix(".zip"))
+    with zipfile.ZipFile(archive, "r") as zip_file:
+        zip_file.extractall(script_dir)
+    os.remove(archive)
+    base_path = os.path.join(extracted, "api")
+    copy_headers(base_path)
+    # The Studio archives already contain the core library. Only the non-pthread
+    # variants are used, as web builds are single-threaded.
+    lib_src = os.path.join(base_path, "studio", "lib", "w32")
+    lib_dst = os.path.join(script_dir, "libs", "web", "wasm32")
+    os.makedirs(lib_dst, exist_ok=True)
+    for lib in ["fmodstudioL_wasm.a", "fmodstudio_wasm.a"]:
+        shutil.copy(os.path.join(lib_src, lib), lib_dst)
+    shutil.rmtree(extracted)
 
 
 def setup_windows(token: str, version: str):
@@ -260,19 +291,23 @@ def main():
         case "setup":
             token = get_token(username, password)
             version: str = args.fmod_version.replace(".", "")
-            match current_os:
-                case "linux":
-                    if args.targetplatform == "android":
+            if args.targetplatform == "web":
+                # The HTML5 SDK is a plain zip, so it can be set up from any host.
+                setup_web(token, version)
+            else:
+                match current_os:
+                    case "linux":
+                        if args.targetplatform == "android":
+                            setup_android(token, version)
+                        else:
+                            setup_linux(token, version)
+                    case "windows":
+                        setup_windows(token, version)
+                    case "android":
                         setup_android(token, version)
-                    else:
-                        setup_linux(token, version)
-                case "windows":
-                    setup_windows(token, version)
-                case "android":
-                    setup_android(token, version)
-                case _:
-                    print("Unsupported system %s" % platform.system())
-                    exit(ERR_UNSUPPORTED_OS)
+                    case _:
+                        print("Unsupported system %s" % platform.system())
+                        exit(ERR_UNSUPPORTED_OS)
         case _:
             print("Unknown Command: %s" % args.command)
             exit(1)

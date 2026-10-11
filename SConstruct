@@ -1,10 +1,54 @@
 #!/usr/bin/env python
+import json
 import os
+import re
+import shutil
 import sys
 from methods import print_error
 
 libname = "FmodGodot"
 so_number = 1
+
+target_platform = ARGUMENTS.get("platform", ARGUMENTS.get("p", "")).lower()
+# FMOD's non-pthread HTML5 libraries only link into single-threaded side modules.
+if target_platform == "web":
+    ARGUMENTS.setdefault("threads", "no")
+
+
+def godot_cpp_bindings_are_stale():
+    # godot-cpp only regenerates its bindings when the API or the build profile file changes. Detect generated
+    # bindings that don't fit this build, so they are regenerated before SCons scans the sources:
+    # - another word size (e.g. a linux build followed by a web build) compiles, but the web build breaks at runtime;
+    # - another build profile (e.g. editor followed by template_release): SCons still finds the editor headers when it
+    #   scans the sources, and the build fails with "editor_interface.hpp: No such file or directory".
+    gen_include = os.path.join("godot-cpp", "gen", "include", "godot_cpp")
+    array_header = os.path.join(gen_include, "variant", "array.hpp")
+    if not os.path.isfile(array_header):
+        return False
+    arch = ARGUMENTS.get("arch", "wasm32" if target_platform == "web" else "")
+    is_32_bit = "32" in arch if arch else sys.maxsize <= 2**32
+    with open(array_header, encoding="utf-8") as header:
+        generated = re.search(r"ARRAY_SIZE = (\d+);", header.read())
+    if generated is not None and generated.group(1) != ("4" if is_32_bit else "8"):
+        return True
+    profile_path = ARGUMENTS.get("build_profile", "")
+    expects_editor_classes = True  # Without a profile, the whole API is generated.
+    if profile_path:
+        try:
+            with open(profile_path, encoding="utf-8") as profile_file:
+                profile = json.load(profile_file)
+        except (OSError, ValueError):
+            return False
+        if "enabled_classes" in profile:
+            expects_editor_classes = "EditorInterface" in profile["enabled_classes"]
+        else:
+            expects_editor_classes = "EditorInterface" not in profile.get("disabled_classes", [])
+    has_editor_classes = os.path.isfile(os.path.join(gen_include, "classes", "editor_interface.hpp"))
+    return expects_editor_classes != has_editor_classes
+
+
+if godot_cpp_bindings_are_stale():
+    shutil.rmtree(os.path.join("godot-cpp", "gen"))
 
 env = SConscript("godot-cpp/SConstruct")
 source_path = [
@@ -54,6 +98,24 @@ def android_config():
     if env["platform"] == "android":
         env.Append(LIBS=['libfmod%s.so' % logging, 'libfmodstudio%s.so' % logging])
         env.Append(LINKFLAGS=["-Wl,-soname,{}.{}".format(lib_filename, so_number)])
+def web_config():
+    if env["platform"] == "web":
+        if env["target"] == "editor":
+            print_error("The editor target is not supported on web. Use target=template_debug or target=template_release.")
+            Exit(1)
+        if env["threads"]:
+            print_error("Web builds only support threads=no.")
+            Exit(1)
+        # The Studio archive already contains the core library. Use File() so SCons links the
+        # archive by path instead of turning it into -lfmodstudio*_wasm.
+        fmod_lib = File("libs/web/wasm32/fmodstudio%s_wasm.a" % logging)
+        if not os.path.isfile(fmod_lib.abspath):
+            print_error("""%s not found.
+    Run the following command to download the FMOD HTML5 libraries:
+
+        python3 fmod_installer.py -t web setup <version>""" % fmod_lib.path)
+            Exit(1)
+        env.Append(LIBS=[fmod_lib])
 def verify_godot_cpp():
     if not (os.path.isdir("godot-cpp") and os.listdir("godot-cpp")):
         print_error("""godot-cpp is not available within this folder, as Git submodules haven't been initialized.
@@ -121,12 +183,16 @@ windows_config();
 macos_config()
 ios_config();
 android_config();
+web_config();
 
 
 gen_docs();
 
 env.Append(LIBPATH=["libs/%s/%s" % (env["platform"], env["arch"])])
 suffix = env['target']
+# Matches godot-cpp's suffix rule; threads is only disabled by default on web.
+if not env["threads"]:
+    suffix += ".nothreads"
 lib_filename = "lib{}.{}{}".format(libname, suffix, env.subst('$SHLIBSUFFIX'))
 library = env.SharedLibrary(
     "plugin_template/bin/{}/{}/{}".format(env["platform"], env["arch"], lib_filename),

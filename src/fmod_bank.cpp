@@ -31,7 +31,7 @@ Vector4i FmodBank::get_id() const
 
 int FmodBank::unload()
 {
-    if (get_loading_state() != FMOD_STUDIO_LOADING_STATE_UNLOADED ||
+    if (get_loading_state() != FMOD_STUDIO_LOADING_STATE_UNLOADED &&
         get_loading_state() != FMOD_STUDIO_LOADING_STATE_UNLOADING)
     {
         print_verbose("Unloading Bank", get_path());
@@ -60,13 +60,13 @@ int FmodBank::unload_sample_data()
 }
 FMOD_STUDIO_LOADING_STATE FmodBank::get_loading_state() const
 {
-    FMOD_STUDIO_LOADING_STATE state;
+    FMOD_STUDIO_LOADING_STATE state = FMOD_STUDIO_LOADING_STATE_UNLOADED;
     FMOD_Studio_Bank_GetLoadingState(bank, &state);
     return state;
 }
 FMOD_STUDIO_LOADING_STATE FmodBank::get_sample_loading_state() const
 {
-    FMOD_STUDIO_LOADING_STATE state;
+    FMOD_STUDIO_LOADING_STATE state = FMOD_STUDIO_LOADING_STATE_UNLOADED;
     FMOD_Studio_Bank_GetSampleLoadingState(bank, &state);
     return state;
 }
