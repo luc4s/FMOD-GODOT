@@ -216,6 +216,9 @@ class FmodAudioServer : public Object
     std::atomic<bool> exit_thread = false;
     Ref<Thread> thread;
     Mutex mutex;
+    // Held for a whole _update_step(). FMOD must not be called between MixerSuspend and MixerResume.
+    Mutex update_mutex;
+    bool mixer_suspended = false;
     void _physics_process();
 
   public:

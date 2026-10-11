@@ -371,9 +371,9 @@ void FmodAudioServer::_physics_process()
         default:
             continue;
         }
-        if (instances[i].nonRigidbodyVelocity && delta > 0)
+        if (instances[i].nonRigidbodyVelocity)
         {
-            instances[i].velocity = (position - instances[i].lastFramePosition) / delta;
+            instances[i].velocity = delta > 0 ? (position - instances[i].lastFramePosition) / delta : Vector3();
         }
         instances[i].lastFramePosition = position;
     }
@@ -416,6 +416,11 @@ void FmodAudioServer::_on_main_loop_started()
 
 void FmodAudioServer::_update_step()
 {
+    MutexLock update_lock(update_mutex);
+    if (mixer_suspended)
+    {
+        return;
+    }
     lock();
     _sync_attached_instances();
     unlock();
@@ -521,6 +526,12 @@ void FmodAudioServer::finish()
     lock();
     instances.clear();
     unlock();
+    // FMOD can't close a suspended system.
+    if (mixer_suspended)
+    {
+        FMOD_System_MixerResume(core_system);
+        mixer_suspended = false;
+    }
     FMOD_Studio_System_Release(studio_system);
     studio_system = nullptr;
     core_system = nullptr;
@@ -530,13 +541,25 @@ void FmodAudioServer::finish()
 void FmodAudioServer::mixer_suspend()
 {
     ERR_FAIL_COND(!initialized);
+    MutexLock update_lock(update_mutex);
+    if (mixer_suspended)
+    {
+        return;
+    }
     FMOD_ERR_FAIL(FMOD_System_MixerSuspend(core_system));
+    mixer_suspended = true;
 }
 
 void FmodAudioServer::mixer_resume()
 {
     ERR_FAIL_COND(!initialized);
+    MutexLock update_lock(update_mutex);
+    if (!mixer_suspended)
+    {
+        return;
+    }
     FMOD_ERR_FAIL(FMOD_System_MixerResume(core_system));
+    mixer_suspended = false;
 }
 void FmodAudioServer::_bind_methods()
 {

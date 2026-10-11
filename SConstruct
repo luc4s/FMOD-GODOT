@@ -7,7 +7,7 @@ libname = "FmodGodot"
 so_number = 1
 
 # FMOD's non-pthread HTML5 libraries only link into single-threaded side modules.
-if ARGUMENTS.get("platform", "") == "web":
+if ARGUMENTS.get("platform", ARGUMENTS.get("p", "")).lower() == "web":
     ARGUMENTS.setdefault("threads", "no")
 
 env = SConscript("godot-cpp/SConstruct")

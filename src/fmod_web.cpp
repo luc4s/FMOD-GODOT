@@ -42,8 +42,26 @@ void install_audio_unlock()
         }
         var target = Module.window ? Module.window : window;
         var events = ([ "keydown", "mousedown", "pointerdown", "pointerup", "touchend" ]);
-        var unlock = function()
+        var unlock = function(e)
         {
+            // FMOD's resume handler only runs once, so only call it for events that can start an AudioContext: not
+            // for the pointerdown of a touch, Escape or modifier keys, or synthetic events.
+            var active = false;
+            if (navigator.userActivation)
+            {
+                active = navigator.userActivation.isActive;
+            }
+            else
+            {
+                active = e.isTrusted && !(e.type == "pointerdown" && e.pointerType != "mouse") &&
+                         !(e.type == "pointerup" && e.pointerType == "mouse") &&
+                         !(e.type == "keydown" && (e.key == "Escape" || e.key == "Shift" || e.key == "Control" ||
+                                                   e.key == "Alt" || e.key == "Meta"));
+            }
+            if (!active)
+            {
+                return;
+            }
             // Set by FMOD's output when it registers its own click/touchend handlers; they guard on mInputRegistered,
             // create the audio worklet and resume the AudioContext.
             var resume_worklet = Module["OutputAudioWorklet_resumeAudio"];

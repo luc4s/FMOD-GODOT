@@ -513,7 +513,9 @@ Resumes the FMOD mixer and audio output after :ref:`mixer_suspend()<class_FmodAu
 
 |void| **mixer_suspend**\ (\ ) :ref:`🔗<class_FmodAudioServer_method_mixer_suspend>`
 
-Suspends the FMOD mixer and audio output, for example while the game is paused or in the background. Use :ref:`mixer_resume()<class_FmodAudioServer_method_mixer_resume>` to resume.
+Suspends the FMOD mixer and audio output, for example while the application is in the background or the operating system interrupts audio. Use :ref:`mixer_resume()<class_FmodAudioServer_method_mixer_resume>` to resume.
+
+FMOD is not updated while the mixer is suspended, and other FMOD functions should not be called until it is resumed. To pause the game's audio, use :ref:`pause_all_events()<class_FmodAudioServer_method_pause_all_events>` instead.
 
 .. rst-class:: classref-item-separator
 

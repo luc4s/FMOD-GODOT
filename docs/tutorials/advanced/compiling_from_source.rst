@@ -44,7 +44,7 @@ may build fine but fail to load in the browser.
    python3 export.py build -p web
 
 Web builds are always single-threaded (``threads=no``), and there is no editor build for the web. To build with SCons
-directly, use ``scons platform=web target=template_debug``.
+directly, use ``scons platform=web target=template_debug api_version=4.6 build_profile=build_profile.json``.
 
 FMOD is linked statically into the web library, so the FMOD libraries don't need to be copied into the addon. A project
 using the addon still needs the desktop editor build to work in the editor. See :ref:`doc_exporting_for_web`.

@@ -28,15 +28,16 @@ Audio starts after the first user input
 ---------------------------------------
 
 Browsers don't allow a page to play audio until the user interacts with it. FMOD is initialized when the game starts,
-but stays silent until the first click, tap or key press, after which audio starts automatically. Events started
-before that are not lost: they play (from their current position) once audio is unlocked.
+but stays silent until the first click, tap or key press (Escape and modifier keys don't count), after which audio
+starts automatically. Events started before that are not lost: they start playing once audio is unlocked.
 
 If your game starts with music, consider a "click to start" screen. Gamepad input does not count as a user
 interaction for browsers.
 
 :ref:`FmodAudioServer.mixer_suspend()<class_FmodAudioServer_method_mixer_suspend>` and
 :ref:`FmodAudioServer.mixer_resume()<class_FmodAudioServer_method_mixer_resume>` can be used to suspend audio, for
-example while the game is paused.
+example while the page is hidden. To pause the game's audio, use
+:ref:`FmodAudioServer.pause_all_events()<class_FmodAudioServer_method_pause_all_events>`.
 
 Limitations
 -----------
@@ -55,15 +56,14 @@ These come from FMOD's HTML5 build or from the web platform:
 - **Banks are loaded into memory.** On the web, the whole exported ``.pck`` is downloaded and kept in memory before
   the game starts. Keep this in mind for large banks.
 - **GDScript only.** Godot does not support exporting C# projects to the web.
-- ``StudioEventDescription`` callbacks are not supported by FMOD on the web. Use event instance callbacks instead.
 
 FmodEventAudioStream
 --------------------
 
-Godot plays streams on the web as "samples" by default (*audio/general/default_playback_type.web*), which
-:ref:`FmodEventAudioStream<class_FmodEventAudioStream>` doesn't support. Set **Playback Type** to **Stream** on the
-``AudioStreamPlayer`` nodes that use it, or set the *audio/general/default_playback_type.web* project setting to
-**Stream**.
+Godot plays streams on the web as "samples" by default (*audio/general/default_playback_type.web*).
+:ref:`FmodEventAudioStream<class_FmodEventAudioStream>` can't be played as a sample: it still plays, but Godot logs a
+warning on every ``play()``. To avoid it, set **Playback Type** to **Stream** on the ``AudioStreamPlayer`` nodes that
+use it, or set the *audio/general/default_playback_type.web* project setting to **Stream**.
 
 Project settings
 ----------------

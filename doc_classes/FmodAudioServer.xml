@@ -158,7 +158,8 @@
 		<method name="mixer_suspend">
 			<return type="void" />
 			<description>
-				Suspends the FMOD mixer and audio output, for example while the game is paused or in the background. Use [method mixer_resume] to resume.
+				Suspends the FMOD mixer and audio output, for example while the application is in the background or the operating system interrupts audio. Use [method mixer_resume] to resume.
+				FMOD is not updated while the mixer is suspended, and other FMOD functions should not be called until it is resumed. To pause the game's audio, use [method pause_all_events] instead.
 			</description>
 		</method>
 		<method name="path_to_guid" qualifiers="const">
