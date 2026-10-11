@@ -10,6 +10,7 @@ inline constexpr const char *SOURCE_TYPE = "fmod/banks/import/source_type";
 inline constexpr const char *FMOD_STUDIO_PATH = "fmod/banks/import/fmod_studio_path";
 inline constexpr const char *FMOD_PROJECT_PATH = "fmod/banks/import/fmod_project_path";
 inline constexpr const char *BANK_DIRECTORY = "fmod/banks/import/bank_directory";
+inline constexpr const char *BASE_PLATFORM_FOLDER = "fmod/banks/import/base_platform_folder";
 inline constexpr const char *LOAD_BANKS = "fmod/banks/initialization/load_banks";
 inline constexpr const char *SPECIFIED_BANKS = "fmod/banks/initialization/specified_banks";
 inline constexpr const char *LOAD_SAMPLE_DATA = "fmod/banks/initialization/load_sample_data";

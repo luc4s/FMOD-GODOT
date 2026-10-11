@@ -14,7 +14,7 @@ Project Settings
 #. Set Fmod Studio Path to the location of your fmod studio executable.
 #. Set the path to your fmod_studio project
 #. Set Bank Directory to match the output of your Fmod project build
-#. Set Source Type to Single Platform Build. Multiplatform builds are not yet supported.
+#. Set Source Type to Single Platform Build. To use different banks per platform, see :ref:`doc_multiplatform_builds`.
 #. Set the other settings as needed for your project.
 
 Importing Banks

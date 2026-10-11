@@ -108,6 +108,7 @@ void loadSettings()
     GLOBAL_DEF_BASIC(PropertyInfo(Variant::Type::STRING, FMOD_STUDIO_PATH, PROPERTY_HINT_GLOBAL_FILE, ""), "");
     GLOBAL_DEF_BASIC(PropertyInfo(Variant::Type::STRING, FMOD_PROJECT_PATH, PROPERTY_HINT_GLOBAL_FILE, ""), "");
     GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, BANK_DIRECTORY, PROPERTY_HINT_DIR, ""), "res://banks");
+    GLOBAL_DEF_BASIC(PropertyInfo(Variant::STRING, BASE_PLATFORM_FOLDER, PROPERTY_HINT_PLACEHOLDER_TEXT, "pc"), "pc");
     GLOBAL_DEF_BASIC(PropertyInfo(Variant::Type::INT, LOAD_BANKS, PROPERTY_HINT_ENUM, "None:0,Specified:1,All:2"), 0);
     GLOBAL_DEF_BASIC(PropertyInfo(Variant::Type::INT, LOAD_BANKS + String(".editor_hint"), PROPERTY_HINT_ENUM,
                                   "None:0,Specified:1 ,All:2"),
@@ -206,6 +207,7 @@ void initialize_fmod_module(ModuleInitializationLevel p_level)
 
         GDREGISTER_INTERNAL_CLASS(FmodDebuggerPlugin)
         GDREGISTER_INTERNAL_CLASS(FmodEditorPlugin)
+        GDREGISTER_INTERNAL_CLASS(FmodExportPlugin)
         GDREGISTER_INTERNAL_CLASS(FmodSelectorInspector)
         GDREGISTER_INTERNAL_CLASS(FmodPathSelectorProperty)
         GDREGISTER_INTERNAL_CLASS(FmodGUIDSelectorProperty)
