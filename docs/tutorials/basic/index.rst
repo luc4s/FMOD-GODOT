@@ -9,6 +9,7 @@ Basic
    :maxdepth: 1
    :name: toc-learn-features-basic
 
+   exporting_for_web
    handling_translations
    multiplatform_builds
    using_studio_plugins

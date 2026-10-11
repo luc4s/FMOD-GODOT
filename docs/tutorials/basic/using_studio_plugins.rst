@@ -14,6 +14,10 @@ relative to this pathe.
 
 *fmod/plugins/plugins*: Dictionary from plugin path to priority. If different shared libraries are needed for different platform use can use `feature overrides`_.
 
+.. note::
+
+    Plugins are not supported on the Web platform. See :ref:`doc_exporting_for_web`.
+
 
 .. image:: img/project_settings.png
 

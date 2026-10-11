@@ -107,4 +107,5 @@ Also Checkout [FMOD GDExtension](https://github.com/utopia-rise/fmod-gdextension
 |Linux     |✅       |Manually Tested                                                        |
 |Windows   |✅       |Manually Tested                                                        |
 |Android   |🟨       |Builds are untested so there might be unfound bugs or additional setup |
+|Web       |🟨       |Single-threaded only. No Live Update or FMOD plugins. See [Exporting for the Web](https://fmod-godot.readthedocs.io/en/latest/tutorials/basic/exporting_for_web.html) |
 |Other     |❌       |Untested/Unsupported                                                   |

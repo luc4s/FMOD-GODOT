@@ -16,7 +16,7 @@ Multiple platform builds apply several restrictions to your project structure. T
 * fmod/banks/import/bank_directory: Set the directory to look for banks
 
 Banks for different platforms will be stored in subdirectories of the configured bank_directory. They
-should be named after feature tags. For example, "pc", "linux", "mac". You can even combine feature tags.
+should be named after feature tags. For example, "pc", "linux", "mac", "web". You can even combine feature tags.
 For example, "linux.double". For your project you will likely want bank_directory/pc to be your main
 directory which will then get remapped for other platforms.
 
