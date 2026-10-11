@@ -20,57 +20,54 @@ def get_arch() -> str:
     return arch
 
 
+def resolveArch(platform, arch):
+    if arch:
+        return arch
+    if platform == "web":
+        return "wasm32"
+    return get_arch()
+
+
+def runScons(platform, arch, target, build_profile, extra_args):
+    p = subprocess.run(
+        [
+            "scons",
+            "use_static_cpp=yes",
+            "debug_symbols=no",
+            *extra_args,
+            "build_profile=%s" % build_profile,
+            "target=%s" % target,
+            "platform=%s" % platform,
+            "arch=%s" % arch,
+            "api_version=4.6",
+        ]
+    )
+    return p.returncode == 0
+
+
 def buildForPlatform(platform, arch, target:str):
-    if(target.lower() in ["release", "all"]):
-        p1 = subprocess.run(
-            [
-                "scons",
-                "use_static_cpp=yes",
-                "debug_symbols=no",
-                "lto=auto",
-                "build_profile=build_profile.json",
-                "target=template_release",
-                "platform=%s" % platform,
-                "arch=%s" % arch,
-                "api_version=4.6",
-            ]
-        )
-        if p1.returncode != 0:
+    target = target.lower()
+    extra_args = ["lto=auto"]
+    if platform == "web":
+        # FMOD's HTML5 libraries are linked statically into a single-threaded side module.
+        # lto=auto would become lto=full on web; lto=none matches CI and the tested setup.
+        extra_args = ["lto=none", "threads=no"]
+        if target == "editor":
+            print("the editor target is not supported on web")
+            exit(1)
+    if(target in ["release", "all"]):
+        if not runScons(platform, arch, "template_release", "build_profile.json", extra_args):
             print("failed to build for release")
             exit(1)
-    if(target.lower() in ["debug", "all"]):
-        p2 = subprocess.run(
-            [
-                "scons",
-                "use_static_cpp=yes",
-                "debug_symbols=no",
-                "lto=auto",
-                "build_profile=build_profile.json",
-                "target=template_debug",
-                "platform=%s" % platform,
-                "arch=%s" % arch,
-                "api_version=4.6",
-            ]
-        )
-        if p2.returncode != 0:
+    if(target in ["debug", "all"]):
+        if not runScons(platform, arch, "template_debug", "build_profile.json", extra_args):
             print("failed to build for debug")
             exit(1)
 
-    if(target.lower() in ["editor", "all"]):
-        p3 = subprocess.run(
-            [
-                "scons",
-                "use_static_cpp=yes",
-                "debug_symbols=no",
-                "lto=auto",
-                "build_profile=build_profile_editor.json",
-                "target=editor",
-                "platform=%s" % platform,
-                "arch=%s" % arch,
-                "api_version=4.6",
-            ]
-        )
-        if p3.returncode != 0:
+    if(target in ["editor", "all"]):
+        if platform == "web":
+            print("skipping editor build: the editor target is not supported on web")
+        elif not runScons(platform, arch, "editor", "build_profile_editor.json", extra_args):
             print("failed to build for editor")
             exit(1)
 
@@ -80,11 +77,13 @@ def exportDependencies(platform, arch):
         os.path.join(script_dir, "plugin_template", "bin", platform, arch),
         exist_ok=True,
     )
-    for file in os.listdir(os.path.join(script_dir, "libs", platform, arch)):
-        shutil.copy(
-            os.path.join(script_dir, "libs", platform, arch, file),
-            os.path.join(script_dir, "plugin_template", "bin", platform, arch, file),
-        )
+    # FMOD is linked statically on web, so there are no libraries to ship.
+    if platform != "web":
+        for file in os.listdir(os.path.join(script_dir, "libs", platform, arch)):
+            shutil.copy(
+                os.path.join(script_dir, "libs", platform, arch, file),
+                os.path.join(script_dir, "plugin_template", "bin", platform, arch, file),
+            )
     shutil.copy(
         os.path.join(script_dir, "LICENSE.txt"),
         os.path.join(script_dir, "plugin_template", "LICENSE.txt"),
@@ -132,8 +131,8 @@ def main():
         "-a",
         "--architecture",
         type=str,
-        help="the cpu architecture to build for",
-        default=get_arch(),
+        help="the cpu architecture to build for (default: wasm32 for web, the host architecture otherwise)",
+        default=None,
     )
 
     push.add_argument(
@@ -143,8 +142,8 @@ def main():
         "-a",
         "--architecture",
         type=str,
-        help="the cpu architecture to build for",
-        default=get_arch(),
+        help="the cpu architecture to build for (default: wasm32 for web, the host architecture otherwise)",
+        default=None,
     )
     args = parser.parse_args()
 
@@ -152,11 +151,13 @@ def main():
         case "build":
             if args.platform == "all":
                 for os_platform in supported_platforms:
-                    buildForPlatform(os_platform, args.architecture,args.target)
-                    exportDependencies(os_platform, args.architecture)
+                    arch = resolveArch(os_platform, args.architecture)
+                    buildForPlatform(os_platform, arch, args.target)
+                    exportDependencies(os_platform, arch)
             else:
-                buildForPlatform(args.platform, args.architecture,args.target)
-                exportDependencies(args.platform, args.architecture)
+                arch = resolveArch(args.platform, args.architecture)
+                buildForPlatform(args.platform, arch, args.target)
+                exportDependencies(args.platform, arch)
         case "export":
             if args.destination == None or not args.destination.is_dir():
                 print(
@@ -184,10 +185,9 @@ def main():
         case "push":
             if args.platform == "all":
                 for os_platform in supported_platforms:
-                    buildForPlatform(os_platform, args.architecture, args.target)
-                    exportDependencies(os_platform, args.architecture)
+                    exportDependencies(os_platform, resolveArch(os_platform, args.architecture))
             else:
-                exportDependencies(args.platform, args.architecture)
+                exportDependencies(args.platform, resolveArch(args.platform, args.architecture))
         case _:
             exit(1)
 

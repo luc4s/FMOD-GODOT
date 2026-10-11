@@ -28,11 +28,15 @@ jobs:
             { platform: android, arch: arm64, os: ubuntu-22.04 },
             # { platform: android, arch: arm32, os: ubuntu-22.04 },
             # { platform: ios, arch: arm64, os: macos-latest },
-            # { platform: web, arch: wasm32, os: ubuntu-22.04 },
+            { platform: web, arch: wasm32, os: ubuntu-22.04 },
           ]
         target-type: [template_debug, template_release, editor]
         float-precision: [single]
         api-version: [4.6]
+        exclude:
+          # The editor target can't be built for the web.
+          - target: { platform: web, arch: wasm32, os: ubuntu-22.04 }
+            target-type: editor
 
     runs-on: ${{ matrix.target.os }}
     steps:
@@ -53,7 +57,8 @@ jobs:
         uses: ./godot-cpp/.github/actions/setup-godot-cpp
         with:
           platform: ${{ matrix.target.platform }}
-          em-version: 3.1.62
+          # Must match the Emscripten version of the Godot 4.6 web export templates.
+          em-version: 4.0.11
 
       # Install Python Requests
       - name: Install python requests
@@ -80,20 +85,21 @@ jobs:
         run: |
           scons target=${{ matrix.target-type }} use_static_cpp=yes platform=${{ matrix.target.platform }} arch=${{ matrix.target.arch }} precision=${{ matrix.float-precision }} api_version=${{ matrix.api-version }} build_profile=build_profile_editor.json
 
+      # Web only supports single-threaded (nothreads) builds for now.
       - name: Build GDExtension Debug Build
         shell: sh
         if: ${{ matrix.target-type != 'editor' }}
         env:
           SCONS_CACHE: ${{ github.workspace }}/.scons-cache/
         run: |
-          scons target=${{ matrix.target-type }} use_static_cpp=yes platform=${{ matrix.target.platform }} arch=${{ matrix.target.arch }} precision=${{ matrix.float-precision }} api_version=${{ matrix.api-version }} build_profile=build_profile.json
+          scons target=${{ matrix.target-type }} use_static_cpp=yes platform=${{ matrix.target.platform }} arch=${{ matrix.target.arch }} precision=${{ matrix.float-precision }} api_version=${{ matrix.api-version }} build_profile=build_profile.json ${{ matrix.target.platform == 'web' && 'threads=no' || '' }}
 
 
       - name: Save .scons_cache
         uses: ./godot-cpp/.github/actions/godot-cache-save
         with:
           scons-cache: ${{ github.workspace }}/.scons-cache/
-          cache-name: ${{ matrix.target.platform }}_${{ matrix.target.arch }}_${{ matrix.float-precision }}_${{ matrix.target-type }}_static
+          cache-name: ${{ matrix.target.platform }}_${{ matrix.target.arch }}_${{ matrix.float-precision }}_${{ matrix.target-type }}_${{ matrix.api-version }}_static
 
 
       # Setup Fmod dependencies

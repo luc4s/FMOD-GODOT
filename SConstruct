@@ -6,6 +6,10 @@ from methods import print_error
 libname = "FmodGodot"
 so_number = 1
 
+# FMOD's non-pthread HTML5 libraries only link into single-threaded side modules.
+if ARGUMENTS.get("platform", "") == "web":
+    ARGUMENTS.setdefault("threads", "no")
+
 env = SConscript("godot-cpp/SConstruct")
 source_path = [
     os.path.join("godot-cpp", "include", "godot_cpp"),
@@ -54,6 +58,24 @@ def android_config():
     if env["platform"] == "android":
         env.Append(LIBS=['libfmod%s.so' % logging, 'libfmodstudio%s.so' % logging])
         env.Append(LINKFLAGS=["-Wl,-soname,{}.{}".format(lib_filename, so_number)])
+def web_config():
+    if env["platform"] == "web":
+        if env["target"] == "editor":
+            print_error("The editor target is not supported on web. Use target=template_debug or target=template_release.")
+            Exit(1)
+        if env["threads"]:
+            print_error("Web builds only support threads=no.")
+            Exit(1)
+        # The Studio archive already contains the core library. Use File() so SCons links the
+        # archive by path instead of turning it into -lfmodstudio*_wasm.
+        fmod_lib = File("libs/web/wasm32/fmodstudio%s_wasm.a" % logging)
+        if not os.path.isfile(fmod_lib.abspath):
+            print_error("""%s not found.
+    Run the following command to download the FMOD HTML5 libraries:
+
+        python3 fmod_installer.py -t web setup <version>""" % fmod_lib.path)
+            Exit(1)
+        env.Append(LIBS=[fmod_lib])
 def verify_godot_cpp():
     if not (os.path.isdir("godot-cpp") and os.listdir("godot-cpp")):
         print_error("""godot-cpp is not available within this folder, as Git submodules haven't been initialized.
@@ -121,12 +143,16 @@ windows_config();
 macos_config()
 ios_config();
 android_config();
+web_config();
 
 
 gen_docs();
 
 env.Append(LIBPATH=["libs/%s/%s" % (env["platform"], env["arch"])])
 suffix = env['target']
+# Matches godot-cpp's suffix rule; threads is only disabled by default on web.
+if not env["threads"]:
+    suffix += ".nothreads"
 lib_filename = "lib{}.{}{}".format(libname, suffix, env.subst('$SHLIBSUFFIX'))
 library = env.SharedLibrary(
     "plugin_template/bin/{}/{}/{}".format(env["platform"], env["arch"], lib_filename),
