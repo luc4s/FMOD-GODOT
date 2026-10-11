@@ -29,6 +29,8 @@ void FmodEditorInterface::restart_server()
 {
     FmodAudioServer::get_singleton()->finish();
     FmodAudioServer::get_singleton()->init_with_project_settings();
+    // The new Studio system has no banks yet.
+    refresh(false);
 }
 void FmodEditorInterface::build_banks()
 {

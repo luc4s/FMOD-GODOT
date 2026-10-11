@@ -193,6 +193,10 @@ class FmodAudioServer : public Object
                                Node3D *p_attenuation_object = nullptr);
 
   public: // Internal unexposed
+    // Where a key of fmod/plugins/plugins is in the project (res:// or absolute).
+    static String _get_plugin_project_path(const String &p_plugin, const String &p_plugin_dir);
+    // Where FMOD loads that plugin from: the project, or the copy FmodExportPlugin added to an exported game.
+    static String _get_plugin_load_path(const String &p_plugin, const String &p_plugin_dir);
     void _load_all_banks_in(const String &p_directory);
     void _load_start_up_banks();
     void _reload_start_up_banks();

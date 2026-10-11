@@ -31,6 +31,8 @@ Properties
    +------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------+
    | String                                                     | :ref:`fmod/banks/import/bank_directory<class_ProjectSettings_property_fmod/banks/import/bank_directory>`                     |
    +------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------+
+   | String                                                     | :ref:`fmod/banks/import/base_platform_folder<class_ProjectSettings_property_fmod/banks/import/base_platform_folder>`         |
+   +------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------+
    | :ref:`Loadbanks<enum_ProjectSettings_Loadbanks>`           | :ref:`fmod/banks/initialization/load_banks<class_ProjectSettings_property_fmod/banks/initialization/load_banks>`             |
    +------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------+
    | ``PackedStringArray``                                      | :ref:`fmod/banks/initialization/specified_banks<class_ProjectSettings_property_fmod/banks/initialization/specified_banks>`   |
@@ -300,6 +302,18 @@ Path to project folder to for bank files.
 
 ----
 
+.. _class_ProjectSettings_property_fmod/banks/import/base_platform_folder:
+
+.. rst-class:: classref-property
+
+String **fmod/banks/import/base_platform_folder** :ref:`🔗<class_ProjectSettings_property_fmod/banks/import/base_platform_folder>`
+
+Only used by a Multiple Platform Build. Name of the subfolder of :ref:`fmod/banks/import/bank_directory<class_ProjectSettings_property_fmod/banks/import/bank_directory>` that holds the banks your project uses in the editor, for example ``pc`` (default) or ``Desktop``. Reference banks by their path in this folder. When exporting, each of its banks is replaced by the same bank from the most specific subfolder whose feature tags all match the export, for example ``web``. With Load banks set to All, the banks of this folder are loaded.
+
+.. rst-class:: classref-item-separator
+
+----
+
 .. _class_ProjectSettings_property_fmod/banks/initialization/load_banks:
 
 .. rst-class:: classref-property
@@ -536,7 +550,9 @@ A scaling factor for distance attenuation. When a sound uses a roll-off mode oth
 
 Dictionary **fmod/plugins/plugins** :ref:`🔗<class_ProjectSettings_property_fmod/plugins/plugins>`
 
-List of dynamic plugins to load. (for example, "resonanceaudio.dll" contains the Windows versions of the ResonanceAudio plugins). Each platform requires its own version of the dynamic library;
+FMOD plugin libraries to load when FMOD starts, mapped to their priority. Each key is the path to the library for the current platform: a ``res://`` path, an absolute path, or a path relative to :ref:`fmod/plugins/path<class_ProjectSettings_property_fmod/plugins/path>`. Each platform needs its own build of a plugin (for example, "resonanceaudio.dll" on Windows and "libresonanceaudio.so" on Linux), so use feature overrides such as ``fmod/plugins/plugins.windows``.
+
+                    When exporting, the libraries are copied next to the executable (Windows, Linux), into ``Contents/Frameworks`` (macOS) or into ``lib/<abi>`` (Android) and loaded from there. On Android, each library must be in a folder named after its ABI, for example ``arm64-v8a``.
 
                     **Note:** Plugins are not supported on the Web platform, they are skipped with a warning.
 
@@ -550,7 +566,7 @@ List of dynamic plugins to load. (for example, "resonanceaudio.dll" contains the
 
 String **fmod/plugins/path** :ref:`🔗<class_ProjectSettings_property_fmod/plugins/path>`
 
-base search path for plug-ins so they can be placed somewhere else than the directory of the main executable. If this is set, the filename parameter of System::loadPlugin is assumed to be relative to this path.
+Folder that relative paths in :ref:`fmod/plugins/plugins<class_ProjectSettings_property_fmod/plugins/plugins>` are resolved against. If empty, they are relative to the project folder (``res://``).
 
                     **Note:** Plugins are not supported on the Web platform.
 

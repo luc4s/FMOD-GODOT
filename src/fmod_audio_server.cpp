@@ -312,19 +312,79 @@ FMOD_RESULT FmodAudioServer::init(const InitSettings &p_settings)
         WARN_PRINT("FMOD plugins (fmod/plugins/plugins) are not supported on the Web platform and were not loaded.");
     }
 #else
-    String plugin_path = GLOBAL_GET(PLUGIN_PATH);
-    if (!plugin_path.is_empty())
+    String plugin_dir = GLOBAL_GET(PLUGIN_PATH);
+    PackedStringArray loaded_plugins;
+    for (const Variant &plugin : plugins.keys())
     {
-        FMOD_System_SetPluginPath(core_system, plugin_path.utf8().ptr());
-    }
-    unsigned int handle;
-    for (auto plugin_file : plugins.keys())
-    {
-        FMOD_System_LoadPlugin(core_system, String(plugin_file).utf8().ptr(), &handle,
-                               /*Priority*/ plugins[plugin_file]);
+        String load_path = _get_plugin_load_path(plugin, plugin_dir);
+        // On Android, the copies for each ABI share one file name and only the device's one is installed.
+        if (loaded_plugins.has(load_path))
+        {
+            continue;
+        }
+        loaded_plugins.push_back(load_path);
+        unsigned int handle = 0;
+        FMOD_RESULT result = FMOD_System_LoadPlugin(core_system, load_path.utf8().get_data(), &handle,
+                                                    /*Priority*/ plugins[plugin]);
+        if (result != FMOD_OK)
+        {
+            ERR_PRINT(vformat("Failed to load FMOD plugin \"%s\" from \"%s\": %s", plugin, load_path,
+                              FMOD_ErrorString(result)));
+        }
+        else
+        {
+            print_verbose(vformat("Loaded FMOD plugin \"%s\" from \"%s\".", plugin, load_path));
+        }
     }
 #endif
     return FMOD_OK;
+}
+
+String FmodAudioServer::_get_plugin_project_path(const String &p_plugin, const String &p_plugin_dir)
+{
+    // Keys of fmod/plugins/plugins are res:// or absolute paths, or paths relative to fmod/plugins/path.
+    String path = p_plugin;
+    if (path.is_relative_path())
+    {
+        path = p_plugin_dir.path_join(path);
+    }
+    if (path.is_relative_path())
+    {
+        path = String("res://").path_join(path);
+    }
+    return path.simplify_path();
+}
+
+String FmodAudioServer::_get_plugin_load_path(const String &p_plugin, const String &p_plugin_dir)
+{
+    String path = _get_plugin_project_path(p_plugin, p_plugin_dir);
+    OS *os = OS::get_singleton();
+    if (!os->has_feature("template"))
+    {
+        // Editor, or a game started from the editor: FMOD can't read res:// paths.
+        path = ProjectSettings::get_singleton()->globalize_path(path);
+    }
+    else if (os->has_feature("android"))
+    {
+        // Exported game: lib/<abi>/ in the APK, which the dynamic linker searches by file name.
+        return path.get_file();
+    }
+    else
+    {
+        // Exported game: FmodExportPlugin copied the library next to the executable, or to Contents/Frameworks
+        // on macOS.
+        String library_dir = os->get_executable_path().get_base_dir();
+        if (os->has_feature("macos"))
+        {
+            library_dir = library_dir.get_base_dir().path_join("Frameworks");
+        }
+        path = library_dir.path_join(path.get_file());
+    }
+    if (os->has_feature("windows"))
+    {
+        path = path.replace("/", "\\"); // Like Godot's own library loading.
+    }
+    return path;
 }
 
 void FmodAudioServer::_physics_process()
@@ -707,8 +767,16 @@ void FmodAudioServer::_load_start_up_banks()
         }
         break;
         case 2: // all
-            _load_all_banks_in(GLOBAL_GET(BANK_DIRECTORY));
-            break;
+        {
+            String directory = GLOBAL_GET(BANK_DIRECTORY);
+            if (int(GLOBAL_GET(SOURCE_TYPE)) == 1)
+            {
+                // Multiple Platform Build: exports store each platform's banks in the base platform folder.
+                directory = directory.path_join(GLOBAL_GET(BASE_PLATFORM_FOLDER));
+            }
+            _load_all_banks_in(directory);
+        }
+        break;
         default:
             break;
         }
