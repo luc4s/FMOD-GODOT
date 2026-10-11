@@ -4,6 +4,9 @@ Throwaway test build for [issue #1](https://github.com/luc4s/FMOD-GODOT/issues/1
 It answers whether FMOD's prebuilt HTML5 static libraries can be linked into a Godot GDExtension
 side module and play audio. Nothing here is part of the plugin build.
 
+> Web support has since been implemented in the plugin itself (see `docs/tutorials/basic/exporting_for_web.rst`).
+> This probe is kept for reference; where this page and the plugin differ, the plugin is current.
+
 **Result: GO.** Single-threaded and threaded both work with the official Godot 4.6 web templates
 (no custom templates needed). One small JS shim is required, see [Finding 3](#3-required-shim-fmod-js-mixer-exports).
 
@@ -130,7 +133,8 @@ input event of *any* kind, or at least document that keyboard-only games need a 
 - `threads=yes` prints `em++: warning: -sSIDE_MODULE + pthreads is experimental`. That warning applies to
   every threaded GDExtension and isn't specific to FMOD.
 - Side module sizes (probe plus godot-cpp plus FMOD): 6.9 MB debug, 5.0 MB release, 7.0 MB threaded debug.
-- The `.gdextension` needs `web.debug.wasm32` / `web.release.wasm32` pointing at the `.nothreads.wasm` files,
+- The `.gdextension` needs web entries pointing at the `.nothreads.wasm` files (the plugin uses
+  `web.debug.nothreads.wasm32` / `web.release.nothreads.wasm32`, so a threaded export doesn't pick them up),
   plus `web.*.threads.wasm32` for threaded builds. Banks need an `include_filter` (`*.bank`) in the export preset.
 
 ## Reproducing
